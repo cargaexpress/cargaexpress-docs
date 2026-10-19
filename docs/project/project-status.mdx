@@ -1,0 +1,78 @@
+---
+id: project-status
+title: Project Status
+sidebar_position: 3
+---
+
+# Project Status
+
+Last updated from repository and documentation analysis: October 2026.
+
+## Overall progress
+
+```mermaid
+gantt
+    title CargaExpress Sprint Timeline
+    dateFormat YYYY-MM-DD
+    axisFormat %b %d
+
+    section Sprint 1
+    Discovery and Design           :done, s1, 2026-09-15, 2026-09-28
+    section Sprint 2
+    Week 1: Models, Mapping, Orders :done, s2w1, 2026-09-29, 2026-10-05
+    Week 2: Labels, Simulators      :done, s2w2, 2026-10-06, 2026-10-13
+    section Sprint 3
+    Orchestration, SLA, Cloud       :active, s3, 2026-10-14, 2026-10-27
+```
+
+## Component status
+
+| Component | Status | Evidence |
+|---|---|---|
+| Business rules RN-01 to RN-10 | ✅ Defined | Documented in Sprint 1 |
+| Canonical state catalog (RN-01) | ✅ Implemented | `state_mapping` table + CHECK constraint |
+| State transition protection (RN-02) | ⚠️ Designed, not enforced | Status updates are direct; no regression check |
+| SLA in business days (RN-03) | ⚠️ Designed | Calendar model defined, implementation in Sprint 3 |
+| At-risk order detection (RN-04) | ⚠️ Designed | Rules defined, Sprint 3 scope |
+| Order-to-label cardinality (RN-07) | ✅ Implemented | `ORDER → SHIPPING_LABEL` one-to-many in schema |
+| 12 operational database tables | ✅ Migrated | Alembic revision `f6b2a9d14c83` (head) |
+| Configurable state mapping (HU-12) | ✅ Working | Admin API + cache with TTL |
+| Order CRUD (HU-13) | ✅ Working | 38 tests, integrated in `main` |
+| Shipping label endpoints (HU-14) | ⚠️ Branch only | `feature/RIWI-68`, not merged |
+| Carrier mapping admin (HU-15) | ⚠️ Router not registered | Code on `main`, router import missing |
+| OpenAPI documentation (HU-16) | ⚠️ Branch only | `feautre/RIWI-77` (sic) |
+| Type A webhook simulator (HU-17) | ✅ Working | 69 tests, standalone project |
+| Type B pull simulator | ✅ Working | 4 carriers on ports 8001–8004 |
+| Type C file simulator (HU-19) | ⚠️ Branch only | `feature/RIWI-88` |
+| WMS seeder | ⚠️ Branch only | Part of HU-19 branch |
+| RabbitMQ queue (HU-23) | ⚠️ Branch only | `feature/RIWI-111` |
+| End-to-end ingestion pipeline | ❌ Not started | No consumer connecting simulators to Control Tower |
+| CI/CD pipeline | ✅ Working | GitHub Actions: lint, format, types, tests, coverage |
+| Docker Compose deployment | ✅ Working | Backend + PostgreSQL, multi-stage build |
+| AWS cloud deployment | ❌ Sprint 3 scope | ECS/Fargate, RDS, S3 planned |
+
+## Test coverage
+
+| Repository | Tests | Coverage | Status |
+|---|---|---|---|
+| `cargaexpress_control_tower` | 91 passing, 1 warning | 81.84% | ✅ Above 80% threshold |
+| `type_A_simulation_data` | 69 passing | — | ✅ All passing |
+| `type_C_simulation_data` | Test suite available | — | ⚠️ Branch-only verification |
+
+## Quality checks passing
+
+- **Ruff:** lint and format approved
+- **mypy:** type checking approved
+- **Alembic check:** no pending operations
+- **Lockfile:** consistency verified
+- **git diff --check:** approved
+
+## Known issues and blockers
+
+| Issue | Impact | Resolution |
+|---|---|---|
+| HU-15 router not registered in `main.py` | Carrier state mapping endpoints not reachable | Add `include_router` call |
+| HU-14 not merged to `main` | Shipping label endpoints unavailable | Merge `feature/RIWI-68` |
+| RN-02 not enforced | Terminal states can be overwritten | Implement transition validation |
+| No ingestion consumer | Simulators cannot feed the Control Tower | Implement raw event store + consumer |
+| Delta and Epsilon carriers not in DB | Type A simulator can't test full ingestion | Add migration for new carriers |
