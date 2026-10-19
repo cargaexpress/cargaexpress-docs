@@ -1,4 +1,4 @@
-// @ts-check
+﻿// @ts-check
 import {themes as prismThemes} from 'prism-react-renderer';
 
 /** @type {import('@docusaurus/types').Config} */
@@ -40,13 +40,14 @@ const config = {
     footer: {
       style: 'dark',
       links: [
-        {title: 'Documentation', items: [{label: 'Project overview', to: '/docs/intro'}, {label: 'Sprint plan', to: '/docs/sprints/overview'}]},
+        {title: 'Documentation', items: [{label: 'Project overview', to: '/docs/intro'}, {label: 'Sprint plan', to: '/docs/sprints/sprint-overview'}]},
         {title: 'Repository', items: [{label: 'GitHub', href: 'https://github.com/cargaexpress/cargaexpress-docs'}]},
       ],
-      copyright: `Copyright © ${new Date().getFullYear()} CargaExpress. Built with Docusaurus.`,
+      copyright: `Copyright Â© ${new Date().getFullYear()} CargaExpress. Built with Docusaurus.`,
     },
     prism: {theme: prismThemes.github, darkTheme: prismThemes.dracula},
   },
 };
 
 export default config;
+

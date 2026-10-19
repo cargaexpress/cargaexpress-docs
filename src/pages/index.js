@@ -1,4 +1,4 @@
-import React from 'react';
+﻿import React from 'react';
 import Link from '@docusaurus/Link';
 import Layout from '@theme/Layout';
 import Heading from '@theme/Heading';
@@ -7,8 +7,8 @@ import styles from './index.module.css';
 const areas = [
   {title: 'Project and business context', text: 'Understand the 3PL operating model, scope, and business goals.', to: '/docs/project/business-context'},
   {title: 'Requirements and canonical states', text: 'Review shipment states, business rules, and requirement traceability.', to: '/docs/requirements/canonical-states'},
-  {title: 'Architecture and integrations', text: 'Explore system boundaries, data keys, ingestion patterns, and the Type B simulator.', to: '/docs/architecture/overview'},
-  {title: 'Sprint documentation', text: 'Follow the documented Sprint 1 and Sprint 3 scope and delivery status.', to: '/docs/sprints/overview'},
+  {title: 'Architecture and integrations', text: 'Explore system boundaries, data keys, ingestion patterns, and the Type B simulator.', to: '/docs/architecture/architecture-overview'},
+  {title: 'Sprint documentation', text: 'Follow the documented Sprint 1 and Sprint 3 scope and delivery status.', to: '/docs/sprints/sprint-overview'},
 ];
 
 export default function Home() {
@@ -44,3 +44,4 @@ export default function Home() {
     </Layout>
   );
 }
+

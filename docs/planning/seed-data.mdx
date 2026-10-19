@@ -1,0 +1,82 @@
+---
+id: seed-data
+title: Seed Data and Reproducibility
+sidebar_position: 2
+---
+
+# Seed Data and Reproducibility
+
+The project uses deterministic, reproducible seed data to support testing, development, and validation of business rules.
+
+## Principles
+
+- **Fixed seed:** one `--seed` number feeds every random choice. Each order has its own generator, so an order never depends on how many were built before it.
+- **No clock reads:** "now" is fixed to 1 July 2026, 15:00 UTC. IDs come from counters.
+- **Idempotent:** every insert is `ON CONFLICT DO NOTHING`, so running the seed twice skips existing rows and never updates or deletes them.
+- **Single transaction:** everything is written in one transaction.
+- **One database = one configuration:** one database means one size, one seed, and one set of defects. Use `--reset` to change settings.
+
+## Seed volumes
+
+| Size | Brands | Orders | Records touched by each defect |
+|---|---|---|---|
+| `small` | 5 | 100 | 5 |
+| `medium` | 20 | 2,000 | 25 |
+| `large` | 60 | 20,000 | 100 |
+
+Every volume creates:
+- 12 carriers (5 Type A, 4 Type B, 3 Type C)
+- 9 distribution centers
+- 9 regions
+- 3 shipping types
+
+An order has 1 to 3 shipping labels.
+
+## Data quality defects
+
+Enable them with `--defects name1,name2`. Each defect is deterministic, touches only a few records, and is marked inside `raw_event.payload` with the key `seed_defect`. Normal data is never changed.
+
+| Defect | What it creates |
+|---|---|
+| `mixed_dates` | The date inside the raw message uses another format: `dd/mm/yyyy HH:MM`, `mm-dd-yyyy HH:MM`, epoch seconds, or `yyyymmddHHMMSS` |
+| `out_of_order_events` | Two events of a shipping label arrive in the wrong order; the late one is flagged as an anomaly |
+| `duplicate_webhooks` | A repeated webhook from a Type A carrier, with an extra `retry` field so its hash differs |
+| `invalid_tracking` | Messages for shipping labels that do not exist (`INVALID-000001` onward) plus `unmatched_event` rows |
+
+## Fixed scenario orders
+
+Orders whose reference starts with `SCN-` always exist, with the same dates, for every size and seed. They are the controlled cases for business rule validation.
+
+| Reference | Business rule tested |
+|---|---|
+| `SCN-01` | Normal dispatch, delivered inside the SLA |
+| `SCN-02` | Friday 17:00 dispatch with Monday holiday (CA-02 worked example) |
+| `SCN-03` | Late delivery, carrier responsible, penalty to carrier |
+| `SCN-04` | Dispatch took 54 hours, DC responsible |
+| `SCN-05` | Wrong-address issue, brand responsible, no penalty |
+| `SCN-06` | One order with 2 labels, one on time and one late (RN-07) |
+| `SCN-07` | An event arrives after `DELIVERED` (RN-02) |
+| `SCN-08` | Saturday dispatch, 14 business hours to deadline, still in transit: at risk |
+| `SCN-09` | Same dates as SCN-08 but already out for delivery: not at risk |
+| `SCN-10` | An issue open for 16 hours: at risk |
+| `SCN-11` | Dispatched on a public holiday |
+| `SCN-12` | DC in Mexico, destination Peru: destination calendar used |
+
+Carrier 12 stays under 85% compliance for two consecutive half-months and is `UNDER_REVIEW` (RN-09). Carrier 11 has only one bad period and stays `ACTIVO`.
+
+## Seed tests
+
+| Test file | What it checks |
+|---|---|
+| `test_1_basic_execution.py` | The command creates the whole dataset |
+| `test_2_reproducibility.py` | Seed 42 gives the same dataset twice |
+| `test_3_idempotency.py` | Running twice does not duplicate anything |
+| `test_4_volumes.py` | Small, medium, and large have the configured size |
+| `test_5_defects.py` | Each defect creates its anomaly and is marked |
+| `test_6_existing_data.py` | Existing data is not overwritten, duplicated, or deleted |
+| `test_business_rules.py` | RN-01 to RN-10 can be tested with the seeded data |
+| `test_calendar_utils.py` | Business-day and cut-off math |
+
+## Type B simulator seed
+
+The Type B simulator seed creates **50,000 events per carrier** with a fixed seed and 20% intentional defects (dirty rate). Defect types include: `date_format`, `out_of_order`, `unknown_status`, `missing_field`, `invalid_tracking`, `orphan_event`, `wrong_type`, and `duplicate_event`.
