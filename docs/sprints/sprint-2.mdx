@@ -1,0 +1,232 @@
+---
+id: sprint-2
+title: Sprint 2 — Carrier Simulators, APIs, and Data Integration Foundations
+sidebar_position: 3
+---
+
+# Sprint 2 — Carrier Simulators, APIs, and Data Integration Foundations
+
+## Sprint overview
+
+Sprint 2 focused on preparing the carrier integration layer for CargaExpress Supply Chain. The work established the foundations for interacting with heterogeneous carrier systems, retrieving shipment information, testing different API responses, and preparing external data for future normalization and ingestion into the Control Tower.
+
+The main technical challenge was that carriers do not necessarily share the same API contracts, database technologies, status catalogs, date formats, or event behavior. The simulator layer provides a controlled environment in which these differences can be tested before implementing the complete integration pipeline.
+
+This documentation distinguishes implementation work from requirements and future integration tasks. Features are not considered complete solely because they appear in the backlog or in the simulator contract.
+
+## Sprint objectives
+
+- Prepare independent carrier simulators for integration testing.
+- Support shipment lookups using tracking numbers.
+- Represent differences between carrier status catalogs and response formats.
+- Use heterogeneous database technologies to simulate different carrier environments.
+- Support configurable scenarios for testing API errors and unavailable shipments.
+- Define repeatable test data and seed requirements.
+- Prepare the technical foundation for future data ingestion and canonical status mapping.
+
+## Workstreams
+
+| Workstream | Scope | Status |
+|---|---|---|
+| Carrier simulators | Independent services representing external carrier systems. | Implemented work exists; final acceptance of every simulator requires verification. |
+| Shipment lookup APIs | Retrieve shipment information using a tracking number. | Endpoint implementation documented for the Type B simulator. |
+| Heterogeneous persistence | Represent carriers using different database technologies. | Four database technologies were selected for the Type B services; verify the final running configuration. |
+| Error simulation | Test server errors, unavailable services, and missing tracking numbers. | Scenario-based examples are available; complete automated test coverage is not confirmed. |
+| Rate limiting | Define and test restrictions on API requests. | Required by the integration contract; final enforcement and measured behavior require verification. |
+| Seed data | Create repeatable, deterministic test datasets. | Fixed and idempotent seed behavior is a requirement; completion must be verified per service. |
+| Control Tower ingestion | Retrieve external data and persist normalized shipment events. | Pending in the last recorded project status. |
+
+## 1. Carrier simulator architecture
+
+The simulator layer isolates carrier-specific behavior from the central Control Tower.
+
+Each simulator represents an external integration boundary. This allows the team to test different API contracts, response formats, data stores, and failure scenarios without depending on live carrier systems.
+
+### Type A — Carrier status variations
+
+The project includes carrier simulation scenarios in which status values differ across providers:
+
+- SimCarrier Alpha reports statuses in English.
+- SimCarrier Beta reports numeric status codes.
+- SimCarrier Gamma reports statuses in Spanish.
+(this have mistakes)
+
+These variations illustrate why the Control Tower must eventually translate external status values into a shared canonical shipment state model.
+
+The canonical state catalog and transition rules are defined separately in the business requirements. The simulators should preserve the original carrier values rather than silently treating different external values as equivalent.
+
+### Type B — REST API pull simulators
+
+Type B represents carrier systems that expose shipment information through REST APIs. The Control Tower is expected to retrieve shipment information by tracking number.
+
+The four independent services use different database technologies:
+
+| Service | Database technology |
+|---|---|
+| `carrier_a` | PostgreSQL |
+| `carrier_b` | MySQL |
+| `carrier_c` | MongoDB |
+| `carrier_d` | SQLite |
+
+This design provides an integration test environment for systems with different persistence models. It does not mean that the Control Tower itself must use all four database technologies.
+
+The final running configuration, database initialization, and service health must be checked against the current Docker Compose configuration.
+
+## 2. Shipment lookup API
+
+The Type B contract uses an individual shipment lookup endpoint:
+
+`GET /shipments/{tracking_number}`
+
+The endpoint identifies the requested shipment using its tracking number and returns the corresponding carrier data according to the simulator's contract.
+
+Example requests used for scenario testing include:
+
+```http
+GET /shipments/RX-83921?scenario=server_error
+GET /shipments/TR-2001?scenario=unavailable
+GET /shipments/PK-3001?scenario=not_found
+GET /shipments/NO-EXISTE
+```
+
+The examples represent different test cases:
+
+| Scenario | Purpose |
+|---|---|
+| `server_error` | Exercise server-error handling. |
+| `unavailable` | Exercise service-unavailability handling. |
+| `not_found` | Exercise missing-shipment handling. |
+| Unknown tracking number | Verify behavior when the requested shipment does not exist. |
+
+These are example requests, not a guarantee that every service currently implements identical scenario behavior. The actual HTTP status codes, response bodies, and supported query parameters must be verified against each service's implementation.
+
+### Expected API behavior
+
+- Identify shipments by their tracking numbers.
+- Return data according to the relevant carrier contract.
+- Make failure scenarios available for integration testing.
+- Apply the agreed request-rate restrictions.
+- Document response formats and error behavior.
+- Avoid exposing carrier-specific assumptions as universal Control Tower rules.
+
+## 3. Heterogeneous data and integration challenges
+
+The simulators provide a controlled way to reproduce differences that commonly complicate multi-carrier integrations.
+
+### Status catalogs
+
+Carriers can report different status names or numeric codes for similar operational events. The Control Tower must eventually map these values to the agreed canonical states.
+
+### Date and timestamp formats
+
+Carrier responses may use different date formats and timestamp conventions. The ingestion layer will need to parse and validate these values before using them for shipment history, event ordering, or SLA calculations.
+
+### Event ordering
+
+External systems may provide delayed or out-of-order updates. The future ingestion process must distinguish event time from retrieval time and apply the approved transition rules without incorrectly overwriting final shipment states.
+
+### Identity and tracking numbers
+
+Tracking numbers identify shipments within carrier systems. The integration architecture must also account for the project's agreed natural keys and global identifiers so that carrier-specific identifiers can be associated with the correct internal shipment records.
+
+The simulators provide a foundation for testing these differences; the complete normalization and identity-resolution workflow belongs to the Control Tower integration layer.
+
+## 4. Rate limiting and scheduled polling
+
+The Type B integration requirements specify a polling restriction of one request every 30 minutes for each carrier integration.
+
+This restriction is intended to control request frequency and provide a predictable integration schedule. Its exact enforcement scope must be defined in the approved contract: per shipment, per service, per client, or another agreed unit.
+
+The polling interval is an integration requirement, not proof that a complete production ingestion scheduler is already running.
+
+The future orchestration process must account for:
+
+- The agreed polling interval and request limits.
+- Retry behavior and temporary service failures.
+- Request timeouts and unavailable carriers.
+- Duplicate retrievals and idempotent processing.
+- Logging and observability of unsuccessful requests.
+
+## 5. Seed data and reproducible testing
+
+The simulator environment requires controlled datasets so that integration tests can be repeated consistently.
+
+The seed-data requirements include:
+
+- Fixed seed data for reproducible scenarios.
+- Versioned seed scripts.
+- Idempotent execution, so rerunning a seed does not create unintended duplicates.
+- Representative shipment tracking numbers.
+- Carrier-specific status values and date formats.
+- Data suitable for testing successful lookups, missing shipments, and error scenarios.
+
+Seed scripts and their execution procedures must be verified against the current repository. The presence of example tracking numbers alone does not establish that all seed requirements have been satisfied.
+
+## 6. Relationship with the Control Tower
+
+Sprint 2 establishes the external integration layer but does not, by itself, complete the end-to-end shipment visibility pipeline.
+
+The intended flow is:
+
+1. A carrier simulator exposes shipment information.
+2. The integration service requests shipment data using the carrier-specific contract.
+3. The response is validated and parsed.
+4. Carrier identifiers and status values are mapped to the internal data model.
+5. Business rules determine whether an event can update the shipment's canonical state.
+6. Valid events are persisted and made available to the Control Tower.
+
+The simulator and API work supports the first step and parts of the second. The full ingestion, normalization, state-transition enforcement, and end-to-end visibility flow must be tracked separately according to their actual implementation status.
+
+## 7. Validation and acceptance focus
+
+The following checks define the evidence needed to close the sprint's integration work.
+
+| Area | Validation |
+|---|---|
+| Service startup | Each simulator starts with its required configuration and dependencies. |
+| Database connectivity | Each service can access its configured database. |
+| Successful lookup | A known tracking number returns the expected shipment data. |
+| Unknown shipment | A nonexistent tracking number produces the documented response. |
+| Error handling | Supported failure scenarios return the expected HTTP status and response body. |
+| Rate limiting | Requests exceeding the agreed limit are handled according to the contract. |
+| Seed reproducibility | Seed execution produces the expected dataset. |
+| Seed idempotency | Repeated seed execution does not introduce unintended duplicates. |
+| Carrier differences | Status values and date formats remain faithful to their respective carrier contracts. |
+| Documentation | Each endpoint, configuration requirement, and test procedure is documented. |
+
+A validation item should be marked complete only when supported by code, a reproducible test, or other verifiable evidence.
+
+## 8. Deliverables and handoff
+
+The Sprint 2 work provides the following foundations for subsequent development:
+
+- Carrier simulator services for integration testing.
+- A Type B REST pull contract based on shipment tracking numbers.
+- A heterogeneous persistence design for the four Type B services.
+- Configurable failure scenarios for API testing.
+- Seed-data and reproducibility requirements.
+- A defined integration boundary between carrier-specific data and the Control Tower's canonical model.
+- Validation criteria for progressing toward ingestion and end-to-end shipment visibility.
+
+The final sprint handoff should include the current repository structure, Docker Compose configuration, environment setup, seed execution instructions, endpoint examples, and test results. Any unverified implementation item should remain open rather than being reported as completed.
+
+## 9. Pending work and limitations
+
+The following items require separate verification or implementation where they remain outstanding:
+
+- Complete automated validation of all four Type B services.
+- Confirm rate-limit enforcement and its exact scope.
+- Verify deterministic and idempotent seed scripts across all services.
+- Implement or complete scheduled data retrieval and ingestion into the Control Tower.
+- Normalize carrier status catalogs and date formats.
+- Apply canonical state-transition rules to incoming events.
+- Implement reliable retries, duplicate handling, and event-ordering safeguards.
+- Validate end-to-end persistence and shipment visibility.
+
+These items must be reconciled with the approved backlog and the latest repository state before the sprint is formally closed.
+
+## Sprint outcome
+
+Sprint 2 established the simulator and API foundations needed to integrate multiple carrier systems with different contracts and data representations. The work makes it possible to test carrier lookups and integration failure scenarios in a controlled environment.
+
+The principal outcome is a foundation for the next stage of development: connecting these external services to a reliable ingestion and normalization pipeline that supports consistent shipment visibility in the CargaExpress Control Tower.

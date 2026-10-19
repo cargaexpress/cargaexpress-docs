@@ -1,45 +1,84 @@
 ---
 id: data-model
-title: Conceptual Data Model and Keys
+title: Data Model and Entity-Relationship Diagram
 sidebar_position: 2
 ---
 
-# Conceptual Data Model and Keys
+# Data Model and Entity-Relationship Diagram
 
-The project discussions distinguish **natural keys** from **global identifiers**. The final ERD and exact key definitions must follow the approved data-model artifact; this page records the concepts that must be preserved.
+## Entity-Relationship Diagram (ERD)
+
+The following diagram reflects the approved physical data model for the CargaExpress platform. All implementations must be consistent with this schema.
+
+![CargaExpress ERD](/img/architecture/der-cargaexpress.png)
+
+## Entity catalog
+
+| Entity | Color in diagram | Role |
+|---|---|---|
+| `CARRIER` | Dark blue | Represents a logistics carrier integrated with the platform. |
+| `DISTRIBUTION_CENTER` | Orange | A physical warehouse or dispatch hub managed by CargaExpress. |
+| `BRAND` | Purple | A commercial brand that places orders through the platform. |
+| `SHIPMENT_TYPE` | Green | Classifies the shipping modality (e.g., express, standard). |
+| `ORDER` | Teal | A fulfillment order placed by a brand, assigned to a DC and carrier. |
+| `ORDER_LINE` | Dark green | A line item within an order, referencing a specific SKU. |
+| `ORDER_RECIPIENT` | Blue | The end-customer receiving the order (1:1 with ORDER). |
+| `DISPATCH` | Dark teal | A dispatch event linking a distribution center to a carrier for an order. |
+| `SHIPPING_LABEL` | Red | A physical/digital label generated per order and carrier. |
+| `SHIPPING_LABEL_ITEM` | Pink | Line-item breakdown within a shipping label. |
+| `PICKING_TASK` | Dark green | A warehouse picking task linked to a specific order line. |
+| `STATE_MAPPING` | Dark blue | Maps raw carrier status codes to canonical shipment states. |
 
 ## Key strategy
 
-- **Natural key:** a business/source identifier that already exists in the relevant domain, such as a carrier tracking number or an external carrier reference. Its uniqueness scope must be explicit; a tracking number should not automatically be assumed globally unique across all carriers.
-- **Global identifier:** an internal identifier used by CargaExpress to correlate records across carriers, systems, and services.
-- **Source identity:** retain the carrier/source identity alongside external IDs so that collisions across carriers can be resolved deterministically.
+- **Natural key:** a business/source identifier that already exists in the relevant domain (e.g., `tracking_number`, `brand_order_ref`). Its uniqueness scope must be explicit — a tracking number is unique **per carrier**, not globally.
+- **Global identifier:** an internal surrogate key (`bigint`) used by CargaExpress to correlate records across carriers, systems, and services.
+- **Source identity:** every external record retains the `carrier_id` alongside external IDs so that cross-carrier collisions are resolved deterministically.
 
-A useful conceptual pattern is to identify a shipment using a CargaExpress global ID while retaining the carrier ID and tracking number as a source-scoped natural key. Confirm the exact ERD and uniqueness constraints before implementing this pattern.
+## Key relationships
 
-## Conceptual entities to account for
+```mermaid
+erDiagram
+    BRAND ||--o{ ORDER : "places"
+    DISTRIBUTION_CENTER ||--o{ ORDER : "fulfills"
+    SHIPMENT_TYPE ||--o{ ORDER : "classifies"
+    ORDER ||--o{ ORDER_LINE : "contains"
+    ORDER ||--|| ORDER_RECIPIENT : "has"
+    ORDER ||--o{ SHIPPING_LABEL : "generates"
+    DISPATCH }o--|| DISTRIBUTION_CENTER : "managed by"
+    DISPATCH }o--|| CARRIER : "handled by"
+    SHIPPING_LABEL }o--|| ORDER : "belongs to"
+    SHIPPING_LABEL }o--|| CARRIER : "issued by"
+    SHIPPING_LABEL }o--|| DISPATCH : "assigned to"
+    SHIPPING_LABEL ||--o{ SHIPPING_LABEL_ITEM : "contains"
+    ORDER_LINE ||--o{ PICKING_TASK : "tracks"
+    CARRIER ||--o{ STATE_MAPPING : "translates"
+```
 
-- Brand
-- Distribution center
-- Carrier
-- Customer order
-- Shipment/package
-- Shipping label
-- Raw carrier event
-- Canonical shipment status
-- Carrier-status mapping
-- SLA/risk rule
-- Exception or incident
+## Canonical status field
 
-Billing, settlement, and penalty entities belong to the wider business context, but their implementation scope depends on the approved sprint plan.
+The `SHIPPING_LABEL.status` field and the `ORDER.status` field must contain only canonical state identifiers as defined in [Canonical Shipment States](../requirements/canonical-states). Valid values are:
+
+| Value | Description |
+|---|---|
+| `CREATED` | Record created, not yet picked up. |
+| `PICKED_UP` | Carrier has collected the shipment. |
+| `IN_TRANSIT` | Shipment moving through the carrier network. |
+| `OUT_FOR_DELIVERY` | Assigned to last-mile delivery route. |
+| `EXCEPTION` | Operational hold or anomaly reported. |
+| `DELIVERED` | Successfully delivered — **terminal**. |
+| `RETURNED` | Return initiated — **terminal**. |
+| `LOST_OR_DAMAGED` | Confirmed loss or damage — **terminal**. |
+
+The raw carrier status is preserved in `STATE_MAPPING.raw_status`. Never discard the source event.
 
 ## Order-to-label cardinality
 
-`RN-07` is associated with the rule that **one order may have multiple shipping labels**. The model must therefore support a one-to-many order-to-label relationship unless the approved backlog states a more specific exception. Do not use a single label field on the order as the only representation of labels.
+`RN-07` specifies that **one order may have multiple shipping labels** (e.g., multi-package shipments or relabeling after an exception). The model supports a one-to-many `ORDER → SHIPPING_LABEL` relationship. Never use a single label field on the order as the sole label reference.
 
-## Data integrity
+## Data integrity requirements
 
-- Enforce referential integrity for brands, carriers, distribution centers, orders, and labels.
-- Define uniqueness constraints based on the actual source scope.
-- Preserve source event identity to support idempotent processing and duplicate detection.
-- Use migrations and versioned seed scripts to make the database reproducible.
-- Seed data must be deterministic, fixed-seed, and idempotent.
+- Enforce foreign-key constraints for all relationships shown in the ERD.
+- Define `UNIQUE` constraints scoped to the correct domain (`tracking_number` per `carrier_id`).
+- Preserve the raw carrier event identity to support idempotent processing and duplicate detection.
+- Use versioned migration scripts and fixed-seed, idempotent seed data.
