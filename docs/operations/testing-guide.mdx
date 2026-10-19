@@ -1,0 +1,129 @@
+---
+id: testing-guide
+title: Testing Guide
+sidebar_position: 2
+---
+
+# Testing Guide
+
+## Control Tower backend tests
+
+### Running tests in Docker (recommended)
+
+From the `cargaexpress_control_tower` root, with `.env` configured:
+
+```powershell
+docker compose --profile test up --build --abort-on-container-exit --exit-code-from test test
+```
+
+This builds a test image, starts an isolated PostgreSQL, runs `alembic upgrade head`, `alembic check`, and then `pytest` with coverage. It does not touch the development database.
+
+### Running tests locally
+
+Requires Python 3.12 and uv. From `backend/`:
+
+```powershell
+uv sync --frozen
+uv run alembic upgrade head
+uv run alembic check
+uv run pytest -v --cov=app --cov-report=term-missing --cov-fail-under=80 tests ../tests
+```
+
+Configure `DATABASE_URL` and `TEST_DATABASE_URL` pointing to an isolated test database.
+
+### Test suite contents
+
+| Test file | Scope |
+|---|---|
+| `test_health.py` | Health check and database connectivity |
+| `test_orders.py` | Order creation, retrieval, listing, status update |
+| `test_order_shipping_labels.py` | Shipping label endpoints and order association |
+| `test_admin_state_mapping.py` | CRUD operations on state mappings |
+| `test_carrier_state_mapping.py` | Full carrier mapping replacement |
+| `test_state_mapping_cache.py` | Cache TTL, invalidation, resolve behavior |
+| `test_state_mapping_seed.py` | Seed data verification |
+| `test_config.py` | Configuration validation and secret strength |
+| `test_openapi.py` | OpenAPI contract validation |
+
+### Lint, format, and type checking
+
+```powershell
+cd backend
+uv run ruff check --config pyproject.toml app tests ../simulators ../tests ../scripts
+uv run ruff format --config pyproject.toml --check app tests ../simulators ../tests ../scripts
+uv run mypy app
+```
+
+## Type A webhook simulator tests
+
+From the `type_A_simulation_data` directory:
+
+```bash
+# With Docker
+docker compose run --rm tests
+
+# Without Docker
+uv sync
+uv run ruff check . && uv run pytest -q
+```
+
+**69 tests** covering:
+- Catalog completeness (≥6 statuses per carrier, all 8 canonical covered)
+- Format encoding/decoding round trips
+- Chaos injection (duplicates, out-of-order)
+- End-to-end simulator → receiver flow
+- Cross-check with backend's `state_mapping` migration
+
+## Type B pull simulator tests
+
+Each carrier service (ports 8001–8004) exposes `/health` for verification:
+
+```bash
+# Start all services
+cd simulador_type_b
+docker compose up --build -d
+
+# Verify health
+curl http://localhost:8001/health
+curl http://localhost:8002/health
+curl http://localhost:8003/health
+curl http://localhost:8004/health
+
+# Test a shipment lookup
+curl http://localhost:8001/shipments/A-SEED-0000001
+```
+
+## Type C file simulator tests
+
+From the `type_C_simulation_data` directory:
+
+```bash
+uv sync
+uv run pytest -v
+```
+
+Tests cover:
+- Type C carrier file generation with deterministic output
+- Defect injection at configured rates
+- WMS seeder idempotency and data integrity
+
+## Seed data tests
+
+The seed project includes dedicated test files:
+
+| Test | Validates |
+|---|---|
+| Basic execution | Complete dataset creation |
+| Reproducibility | Same seed → same dataset |
+| Idempotency | Double execution → no duplicates |
+| Volumes | Small, medium, large have correct sizes |
+| Defects | Each defect type creates and marks its anomaly |
+| Existing data | No overwrites, duplicates, or deletions |
+| Business rules | RN-01 to RN-10 testable with seeded data |
+| Calendar utils | Business-day and cut-off calculations |
+
+## Coverage requirements
+
+- **Minimum coverage:** 80% (enforced in CI)
+- **Current coverage:** 81.84%
+- **CI pipeline:** GitHub Actions runs lint, format, types, migration check, and tests on every pull request

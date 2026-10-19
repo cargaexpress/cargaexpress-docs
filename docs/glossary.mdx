@@ -1,0 +1,43 @@
+---
+id: glossary
+title: Glossary
+sidebar_position: 99
+---
+
+# Glossary
+
+| Term | Definition |
+|---|---|
+| **3PL** | Third-party logistics. A business model where a company manages logistics operations on behalf of other businesses (brands). |
+| **ADR** | Architecture Decision Record. A short document that explains one technical decision: context, decision, consequences, and evidence. |
+| **Alembic** | A database migration tool for SQLAlchemy. Manages versioned schema changes through migration scripts. |
+| **Brand** | A commercial brand that places orders through the CargaExpress platform. The system manages 60 brands. |
+| **Canonical status** | One of the 8 normalized shipment states used by the Control Tower. All carrier-specific statuses are mapped to these values. |
+| **Carrier** | A logistics company that transports shipments. CargaExpress integrates 12 carriers across three modalities. |
+| **Carrier adapter** | A component that translates carrier-specific data formats and status codes into the platform's canonical model. |
+| **Control Tower** | The central system that consolidates shipment information from all carriers and applies unified business rules. |
+| **DC (Distribution Center)** | A physical warehouse or dispatch hub managed by CargaExpress. The system has 9 distribution centers. |
+| **Dead-letter queue** | A message queue where failed webhook deliveries are stored for later reprocessing. |
+| **DER / ERD** | Entity-Relationship Diagram. A visual representation of the database tables and their relationships. |
+| **Dispatch** | The event of a distribution center handing off a shipment to a carrier for delivery. |
+| **FastAPI** | The Python web framework used for the Control Tower's HTTP API. |
+| **Gold layer** | The top layer of the Data Lake, containing aggregated, BI-ready data in a star schema with no personal data. |
+| **Idempotent** | An operation that produces the same result when executed multiple times. Seed scripts and event processing must be idempotent. |
+| **Landing zone** | The first layer of the S3 Data Lake where files are stored as received, before any processing. |
+| **Medallion architecture** | A data architecture pattern with four layers: Landing → Bronze → Silver → Gold, each progressively more refined. |
+| **Normalization** | The process of translating carrier-specific status codes into canonical statuses using the state mapping table. |
+| **Order** | A fulfillment request placed by a brand through the platform, containing one or more order lines. |
+| **Order line** | A specific SKU and quantity within an order. |
+| **Picking task** | A warehouse task assigned to pick items for a specific order line. |
+| **RN (Regla de Negocio)** | Business Rule. The project defines RN-01 through RN-10. |
+| **Raw event** | The original, unmodified carrier event stored for traceability. Raw events are immutable and deduplicated by hash. |
+| **Seed data** | Deterministic, reproducible test data created from a fixed seed value. Must be idempotent. |
+| **Shipping label** | A physical or digital label generated per order and carrier. One order can have multiple labels (RN-07). |
+| **SLA (Service Level Agreement)** | The delivery deadline measured in business days, excluding Sundays and holidays of the destination country. |
+| **State mapping** | The configurable table that translates raw carrier statuses to canonical statuses. Managed via the admin API. |
+| **Terminal state** | A canonical status from which no further transitions are allowed: `DELIVERED`, `RETURNED`, `LOST_OR_DAMAGED`. |
+| **Tracking number** | A unique identifier for a shipment within a carrier system. Globally unique in the CargaExpress database. |
+| **Type A carrier** | A carrier that pushes events via webhooks (HTTP POST). 5 carriers, 5 different message formats. |
+| **Type B carrier** | A carrier that exposes a REST API for pull-based polling. 4 carriers, 4 different databases. |
+| **Type C carrier** | A carrier that delivers batch files (CSV/XLSX). 3 carriers with different schemas and languages. |
+| **WMS** | Warehouse Management System. Handles orders, shipping labels, picking, fulfillment, and dispatch. |
