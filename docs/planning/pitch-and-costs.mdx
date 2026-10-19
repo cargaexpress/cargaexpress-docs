@@ -1,0 +1,38 @@
+---
+id: pitch-and-costs
+title: Project Pitch and Cost Considerations
+sidebar_position: 1
+---
+
+# Project Pitch and Cost Considerations
+
+## Short project pitch
+
+CargaExpress Supply Chain is a 3PL visibility and logistics-operations initiative for an environment with 60 brands, 9 distribution centers, and 12 carriers. It addresses fragmented carrier tracking data by normalizing carrier events into a canonical shipment model, enforcing consistent state-transition rules, and enabling traceable SLA and delivery-risk analysis. The wider solution also includes WMS workflows for orders, labels, picking, fulfillment, and dispatch.
+
+## Pitch outline
+
+1. **Problem:** each carrier reports shipment progress differently, making cross-carrier visibility and reliable operational decisions difficult.
+2. **Users and operating context:** logistics and warehouse teams working across brands, distribution centers, and carriers.
+3. **Solution:** carrier adapters, canonical status normalization, transition validation, traceable event history, SLA/risk rules, and WMS integration.
+4. **Differentiation:** a shared canonical view while retaining source-level traceability and carrier-specific contracts.
+5. **Delivery approach:** iterative sprints, documented requirements, ADRs, testable user stories, deterministic seed data, and reproducible deployment.
+6. **Expected outcomes:** improved visibility, earlier identification of at-risk shipments, more consistent operational handling, and more reliable data for settlement processes.
+7. **Next milestone:** complete and validate the ingestion pipeline before claiming end-to-end visibility.
+
+## Cost model
+
+No approved numeric budget or verified monthly estimate was available in the accessible project context. Do not publish invented dollar amounts. Build the estimate from the actual deployment design and region.
+
+| Cost driver | What to estimate |
+|---|---|
+| Compute | ECS/Fargate tasks or other selected compute, including desired task count and runtime hours. |
+| Database | RDS instance size, storage, backups, and data transfer. |
+| Container registry | ECR image storage and image-transfer costs. |
+| Messaging/orchestration | Any managed services actually selected; distinguish managed services from locally/container-hosted components. |
+| Networking | NAT gateways, load balancers, public IPv4, and outbound data transfer where applicable. |
+| Observability | Logs, metrics, alarms, and retention. |
+| CI/CD | Build minutes, artifact storage, and deployment frequency where billable. |
+| Environments | Separate development, test, and production resources, if required. |
+
+Document the region, usage assumptions, resource sizes, uptime, data volume, and whether services are managed or self-hosted before comparing one-month and five-month costs. Keep estimates separate from actual billing data.

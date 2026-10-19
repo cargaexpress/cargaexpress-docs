@@ -1,0 +1,35 @@
+---
+id: sprint-3
+title: Sprint 3 — Orchestration, SLA, and Cloud Delivery
+sidebar_position: 3
+---
+
+# Sprint 3 — Orchestration, SLA, and Cloud Delivery
+
+The captured Sprint 3 backlog covers `HU-26` through `HU-40` and was associated with weeks 4–5 of the six-week project timeline.
+
+## Story groups
+
+| Story IDs | Focus captured in the backlog summary |
+|---|---|
+| `HU-26`–`HU-30` | Orchestration and asynchronous processing using Airflow, Celery, and RabbitMQ. |
+| `HU-31`–`HU-33` | Business-day SLA rules and at-risk order logic. |
+| `HU-34`–`HU-40` | AWS optimization and deployment, including Docker, ECR, RDS, ECS/Fargate, and CI/CD. |
+
+The original backlog contains acceptance criteria, dependencies, MoSCoW priorities, and technical tasks. Those exact per-story details must be copied from the approved backlog; they are not reconstructed here where the wording was not preserved in the accessible summary.
+
+## Explicit exclusions from this Sprint 3 scope
+
+- Penalty implementation.
+- A Power BI dimensional model.
+- Kubernetes as the primary project goal.
+
+These exclusions apply to the captured Sprint 3 scope. They do not imply that penalties or reporting are irrelevant to the wider business vision.
+
+## Validation focus
+
+- Scheduled or asynchronous work is observable and recoverable.
+- Business-day calculations use the agreed calendar and SLA definitions.
+- At-risk order decisions are traceable to the rule and source data that produced them.
+- Cloud deployment and CI/CD configuration are reproducible and do not expose secrets.
+- Infrastructure costs are reviewed against the team's approved budget before deployment.

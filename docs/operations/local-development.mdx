@@ -1,0 +1,53 @@
+---
+id: local-development
+title: Local Development and Validation
+sidebar_position: 1
+---
+
+# Local Development and Validation
+
+## Requirements
+
+- Node.js 20 or newer (the project was previously run with Node 26).
+- npm, which is included with Node.js.
+- Git when the documentation repository is connected to GitHub.
+
+## Run the documentation site
+
+From the documentation project directory:
+
+```bash
+npm install
+npm run start
+```
+
+Open `http://localhost:3000`. Docusaurus reloads edited documentation pages during local development.
+
+## Validate a production build
+
+```bash
+npm run build
+```
+
+A successful build generates static files in `build/`. The build command checks the documentation and Docusaurus configuration; it does not publish the site.
+
+To preview the generated build locally:
+
+```bash
+npm run serve
+```
+
+## Troubleshooting on Windows
+
+If a build fails with `EBUSY` while removing a directory under `build` or `.docusaurus`, stop the running Docusaurus process with `Ctrl+C`, then remove only the generated directories and rebuild:
+
+```powershell
+Remove-Item -Recurse -Force .\build, .\.docusaurus -ErrorAction SilentlyContinue
+npm run build
+```
+
+Do not delete `docs`, `src`, `static`, `package.json`, or `package-lock.json` as part of this cleanup.
+
+## Repository and publishing status
+
+The local folder was previously reported as not being a Git repository (`fatal: not a git repository`). This documentation package therefore must not be described as published until the Git remote, branch, and GitHub Pages workflow have been configured and verified. The intended repository is `cargaexpress/cargaexpress-docs`; confirm its existing contents before the first push.
