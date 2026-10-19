@@ -1,0 +1,42 @@
+---
+id: ingestion-strategies
+title: Carrier Data Ingestion
+sidebar_position: 1
+---
+
+# Carrier Data Ingestion
+
+The target architecture considers three integration patterns. The appropriate pattern is selected per carrier contract, not assumed to be the same for every carrier.
+
+## Push integration
+
+A carrier sends shipment events to a CargaExpress endpoint. The receiver should validate the payload, identify the source, retain the original event, and acknowledge or reject the request according to the contract. Authentication, retry, and signature requirements must be defined per carrier.
+
+## Pull integration
+
+CargaExpress queries a carrier endpoint for shipment information. The known Type B API contract uses an individual tracking-number query:
+
+```http
+GET /shipments/{tracking_number}
+```
+
+The pull process must respect each carrier's request limits and schedule. The Type B simulator requirements discussed a 30-minute cadence/limit, configurable rate limiting, and testable error scenarios. Confirm exact production polling and rate-limit semantics in the approved API contract.
+
+## File-based integration
+
+A carrier or partner provides a batch file. The import process should validate the file format, required fields, timestamp formats, source identity, duplicates, and row-level errors. Invalid rows must be visible for correction rather than silently discarded.
+
+## Common processing pipeline
+
+1. Identify the carrier and integration contract.
+2. Receive or fetch the source payload.
+3. Persist or log the original payload for traceability.
+4. Validate required fields and parse timestamps.
+5. Map source status to the canonical state catalog.
+6. apply transition and ordering rules.
+7. Update the shipment projection without losing event history.
+8. Expose failures, unknown states, and anomalous events for review.
+
+## Implementation status
+
+The latest status shared in the project conversation stated that **end-to-end ingestion had not yet been implemented**. The simulator is a test source; it is not itself proof that the Control Tower ingests, normalizes, persists, and exposes carrier data end to end.
