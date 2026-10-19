@@ -1,0 +1,37 @@
+---
+id: intro
+title: CargaExpress Supply Chain
+description: Project overview, scope, and documentation entry point.
+sidebar_position: 1
+---
+
+# CargaExpress Supply Chain
+
+CargaExpress is a third-party logistics (3PL) visibility and operations project designed to consolidate shipment information from multiple carriers, normalize carrier-specific events, and support operational decisions across brands and distribution centers.
+
+## Business context
+
+The operating context described in the project backlog includes **60 brands, 9 distribution centers, and 12 carriers**. Each carrier can report different status names, codes, timestamp formats, and event sequences. The Control Tower must turn those differences into a consistent view of shipment progress.
+
+## Project goals
+
+- Provide a consistent, traceable view of shipment status across carriers.
+- Normalize external carrier events into a canonical status catalog.
+- Apply controlled status-transition rules and detect anomalous events.
+- Support SLA calculation, delivery-risk identification, and responsibility analysis.
+- Integrate warehouse workflows for orders, shipping labels, picking, fulfillment, and dispatch.
+- Prepare reliable data for operational reporting and periodic billing or settlement processes.
+
+## Documentation map
+
+- **Project:** business context, scope, assumptions, and current implementation status.
+- **Requirements:** canonical states, business rules, and functional-requirement traceability.
+- **Backlog:** story-writing conventions, acceptance criteria, and traceability.
+- **Architecture:** system boundaries, data model, integration patterns, and decision records.
+- **Integrations:** push, pull, and file-based ingestion, including the Type B API simulator.
+- **Sprints:** discovery/design work and the known Sprint 3 scope.
+- **Operations:** local development and validation commands.
+
+## Status and source policy
+
+This documentation distinguishes **confirmed project context**, **planned capabilities**, and **implementation reported as incomplete**. A requirement is not considered implemented just because it appears in the backlog. Where the exact wording of a requirement is not available in the retrieved project context, the original approved backlog remains the source of truth; this documentation does not invent missing acceptance criteria.

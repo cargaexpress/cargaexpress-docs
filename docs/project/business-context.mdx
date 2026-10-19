@@ -1,0 +1,49 @@
+---
+id: business-context
+title: Business Context and Scope
+sidebar_position: 1
+---
+
+# Business Context and Scope
+
+## Operating context
+
+| Dimension | Project context |
+|---|---|
+| Business model | Third-party logistics (3PL) |
+| Brands | 60 |
+| Distribution centers | 9 |
+| Carriers | 12 |
+| Primary challenge | Carrier events are heterogeneous and must be normalized |
+| Operational outcomes | Shipment visibility, SLA monitoring, risk, responsibility analysis, and settlement support |
+
+These figures come from the project context shared during backlog discovery. They are planning context, not a claim that all integrations are already connected.
+
+## Business problem
+
+Shipment events arrive from carriers using different vocabularies, codes, date formats, and event ordering. Without a canonical model, a team cannot reliably compare shipment progress, identify delayed orders, explain exceptions, or calculate business rules consistently.
+
+## Product scope
+
+### Control Tower
+
+- Ingest carrier data through push, pull, and file-based integration patterns.
+- Preserve the source event and normalize it to a canonical shipment status.
+- Apply transition rules and flag out-of-order or otherwise anomalous events.
+- Calculate SLA and risk indicators when the relevant rules and data are available.
+- Keep traceability from an external event to the normalized event and affected shipment.
+
+### Warehouse Management System (WMS)
+
+The backlog includes warehouse workflows for orders, shipping labels, picking, fulfillment, and dispatch. One order may be associated with multiple shipping labels; the data model must not assume a one-to-one order-to-label relationship.
+
+### Reporting and financial processes
+
+The business context includes responsibility analysis, penalties, and periodic billing/settlement. These are business outcomes, but their delivery must follow the approved sprint scope. In particular, penalties and a Power BI dimensional model were explicitly outside the known Sprint 3 scope.
+
+## Out of scope or not confirmed
+
+- Kubernetes as the primary deployment objective.
+- A confirmed numeric cloud budget: no approved cost estimate was available in the retrieved backlog context.
+- Any claim that end-to-end ingestion is complete. The latest project status shared in conversation said ingestion had not yet been implemented.
+- Assigning team roles: the team had not defined roles at the time this documentation context was shared.
