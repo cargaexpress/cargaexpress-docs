@@ -1,0 +1,36 @@
+---
+id: canonical-states
+title: Canonical Shipment States
+sidebar_position: 1
+---
+
+# Canonical Shipment States
+
+The Control Tower uses a canonical state catalog so that carrier-specific labels and codes can be compared consistently. The canonical identifiers below preserve the source backlog names; English descriptions are provided for the documentation.
+
+| Canonical identifier | English meaning | Notes |
+|---|---|---|
+| `CREADO` | Created | Shipment/order record has been created. |
+| `RECOGIDO` | Picked up | The carrier has collected the shipment. |
+| `EN_TRANSITO` | In transit | The shipment is moving through the carrier network. |
+| `EN_REPARTO` | Out for delivery | The shipment is assigned to a delivery route. |
+| `NOVEDAD` | Exception | An operational issue or exception has been reported. |
+| `ENTREGADO` | Delivered | Delivery has been completed. |
+| `DEVUELTO` | Returned | The shipment is in a return outcome/state. |
+| `SINIESTRO` | Loss/claim incident | An incident requiring special handling has been reported. Confirm the exact business definition against the approved requirements. |
+
+## Normalization
+
+Each carrier adapter must map the carrier's own status values to one canonical identifier. The mapping should be explicit and maintainable; unknown values must not silently be treated as a valid canonical state.
+
+## Final-state protection
+
+The project rules state that final states must not regress. A later event that attempts to move a shipment backward from a final state is treated as an anomaly rather than overwriting the final state. The exact list of final states and the full transition matrix must be validated against RN-02 in the approved backlog before implementation sign-off.
+
+## Required validation cases
+
+- Known carrier status maps to the expected canonical identifier.
+- Unknown carrier status is recorded or surfaced for review rather than silently misclassified.
+- An event arriving out of chronological order does not corrupt the shipment's canonical state.
+- A transition from a final state to an earlier state is rejected or flagged according to the approved transition rules.
+- The raw carrier status and source event remain traceable for troubleshooting.

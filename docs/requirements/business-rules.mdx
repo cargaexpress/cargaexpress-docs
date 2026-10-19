@@ -1,0 +1,32 @@
+---
+id: business-rules
+title: Business Rules RN-01 to RN-10
+sidebar_position: 2
+---
+
+# Business Rules: RN-01 to RN-10
+
+The project backlog defines a business-rule set `RN-01` through `RN-10`. The available conversation context confirms the purpose of the first two rules but does not preserve the full verbatim text of all ten. The table therefore separates confirmed information from details that must be copied from the approved backlog rather than reconstructed from memory.
+
+| ID | Confirmed topic | Documentation status |
+|---|---|---|
+| `RN-01` | Canonical shipment-state catalog | Captured on the [Canonical Shipment States](./canonical-states.mdx) page. The approved backlog remains authoritative for exact wording and validation details. |
+| `RN-02` | Shipment-state transition rules | Confirmed: final states must not regress; later conflicting events are anomalies. The complete transition matrix and exact final-state list require verification against the approved backlog. |
+| `RN-03` | Full wording not present in retrieved context | Transcribe from the approved backlog before sign-off. |
+| `RN-04` | Full wording not present in retrieved context | Transcribe from the approved backlog before sign-off. |
+| `RN-05` | Full wording not present in retrieved context | Transcribe from the approved backlog before sign-off. |
+| `RN-06` | Full wording not present in retrieved context | Transcribe from the approved backlog before sign-off. |
+| `RN-07` | Order-to-label relationship | Confirmed: one order may have multiple shipping labels. The complete rule wording and edge cases must be verified against the approved backlog. |
+| `RN-08` | Full wording not present in retrieved context | Transcribe from the approved backlog before sign-off. |
+| `RN-09` | Full wording not present in retrieved context | Transcribe from the approved backlog before sign-off. |
+| `RN-10` | Full wording not present in retrieved context | Transcribe from the approved backlog before sign-off. |
+
+## Cross-cutting rules confirmed in project discussions
+
+- Keep the carrier catalog and brand catalog consistent; prevent invalid or orphaned references.
+- Support natural business keys and global identifiers where needed to correlate entities across systems.
+- Seed data must use a fixed seed and be reproducible and idempotent.
+- Carrier events may arrive out of order and may use different date formats.
+- Carrier-specific state catalogs must be mapped to the canonical catalog.
+
+> **Source integrity:** This page is intentionally not a replacement for the approved backlog. The exact RN-03–RN-06 and RN-08–RN-10 text was not present in the accessible conversation summary and must not be guessed.
