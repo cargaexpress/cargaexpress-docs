@@ -1,0 +1,127 @@
+---
+id: sprint-2-stories
+title: Sprint 2 User Stories
+sidebar_position: 2
+---
+
+# Sprint 2 — User Stories and Subtasks
+
+Sprint 2 focused on building the carrier integration layer and the core API. The work is organized into two weeks with distinct objectives.
+
+## Week 1: Data model, state mapping, and order endpoints
+
+**Observed dates:** 29 September to 5 October 2026
+
+| Story | Jira | Title | Epic | Status |
+|---|---|---|---|---|
+| HU-11 | RIWI-52 | Implement the Complete WMS ORM Model | Data Model & Persistence | Merged to `main` |
+| HU-12 | RIWI-57 | Create the Configurable State Mapping Model | Data Model & Persistence | Merged to `main` |
+| HU-13 | RIWI-63 | Order CRUD Endpoints | Core Endpoints | Merged to `main` |
+
+### HU-11 — Implement the Complete WMS ORM Model
+
+**Goal:** Create the SQLAlchemy models and initial Alembic migration for the 12 operational tables.
+
+| Subtask | Jira | Work |
+|---|---|---|
+| Create Order model | RIWI-53 | `brand_id`, `dc_id`, `created_at`, `dispatched_at`, `status` |
+| Create Shipping Label model | RIWI-54 | 1 order → N shipping labels (RN-07) |
+| Create Carrier Event model | RIWI-55 | Raw status + canonical status + timestamp |
+| Generate and apply initial migration | RIWI-56 | Alembic `upgrade head` |
+
+### HU-12 — Configurable State Mapping
+
+**Goal:** Translate each carrier's status into canonical states, with mapping changeable without restart (CA-06).
+
+| Subtask | Jira | Work |
+|---|---|---|
+| `StateMapping` model | RIWI-58 | `carrier_id`, `raw_status`, `canonical_status` |
+| Initial seed for simulated carriers | RIWI-59 | ≥6 distinct source statuses per carrier |
+| In-memory cache with invalidation | RIWI-60 | 300s TTL, invalidated on write |
+
+**Result:** `state_mapping` table with `UNIQUE(carrier_id, raw_status)` and `CHECK` constraint on canonical status. Admin API at `/api/v1/admin/state-mappings`. Migrations `a3f1c9d27b45`, `b7e24d51c8a9`, `c4a1209b7e6f`.
+
+### HU-13 — Order CRUD Endpoints
+
+**Goal:** Expose the basic order life cycle through the API.
+
+| Subtask | Jira | Work |
+|---|---|---|
+| `POST /api/v1/orders` | RIWI-64 | Create order with lines and recipient |
+| `GET /api/v1/orders` and `GET /api/v1/orders/{id}` | RIWI-65 | Paginated listing and detail |
+| `PATCH /api/v1/orders/{id}/status` | RIWI-66 | Status update (direct, RN-02 not yet enforced) |
+| pytest tests | RIWI-67 | Integration tests against real PostgreSQL |
+
+:::warning
+Jira names the update `PATCH /orders/{id}/dispatch`, but the code serves `PATCH /orders/{id}/status`. The update is direct: RN-02 (terminal state protection) is not implemented yet.
+:::
+
+---
+
+## Week 2: Labels, OpenAPI, and simulators
+
+**Observed dates:** 6 to 13 October 2026
+
+| Story | Jira | Title | Epic | Status |
+|---|---|---|---|---|
+| HU-14 | RIWI-68 | Order-Associated Shipping Label Endpoints | Core Endpoints | Branch only |
+| HU-15 | RIWI-72 | Status Mapping Endpoints | Core Endpoints | On `main`, router not registered |
+| HU-16 | RIWI-77 | Complete OpenAPI/Swagger Documentation | Documented APIs | Branch only |
+| HU-17 | RIWI-82 | Webhook Simulator (Push) — 5 Type A Carriers | Ingestion Simulators | Branch + standalone |
+| HU-19 | RIWI-88 | Type C File Simulator | Ingestion Simulators | Branch only |
+| HU-23 | RIWI-110 | Publish Webhooks to a RabbitMQ Queue | Ingestion | Branch only |
+
+### HU-14 — Shipping Label Endpoints
+
+| Subtask | Jira | Work |
+|---|---|---|
+| `POST /api/v1/orders/{id}/shipping-labels` | RIWI-69 | Register a new label for an order |
+| `GET /api/v1/orders/{id}/shipping-labels` | RIWI-70 | List labels of an order |
+
+### HU-15 — Status Mapping Endpoints
+
+| Subtask | Jira | Work |
+|---|---|---|
+| `GET /api/v1/admin/carrier-state-mapping/{id}` | RIWI-73 | Get full carrier mapping |
+| `PUT /api/v1/admin/carrier-state-mapping/{id}` | RIWI-74 | Replace mapping, apply without restart |
+| pytest test for hot reload | RIWI-75 | Verify change reflected without restart |
+
+:::warning
+The HU-15 router is **not registered** in `backend/app/main.py`. Adding the import and an `include_router` call fixes it.
+:::
+
+### HU-17 — Webhook Simulator (5 Type A Carriers)
+
+| Subtask | Jira | Work |
+|---|---|---|
+| Random event generator per carrier | RIWI-83 | Lifecycle-based generation with weights |
+| Catalog of ≥6 statuses per carrier | RIWI-84 | 10–11 statuses each, covering all 8 canonical |
+| Configurable duplicates and out-of-order | RIWI-85 | `SIM_DUPLICATE_RATE`, `SIM_OUT_OF_ORDER_RATE` |
+| Dockerize separately from backend | RIWI-86 | Independent Dockerfile and Compose |
+
+**Result:** 69 automated tests, 7 mutation tests passed, 300-message real execution verified.
+
+### HU-19 — Type C File Simulator
+
+Three carriers generating CSV/XLSX files with configurable defect injection. Includes WMS seeder.
+
+### HU-23 — RabbitMQ Queue
+
+A `rabbitmq` service with management interface, persistent storage, and credentials from `.env`. AMQP port `5672`, web interface `15672`. Not yet merged into `main`.
+
+## Integration status summary
+
+| Item | Status |
+|---|---|
+| 12 operational database tables | ✅ Migrated and tested |
+| State mapping with cache | ✅ Working with admin API |
+| Order CRUD | ✅ Working (RN-02 pending) |
+| Shipping label endpoints | ⚠️ Branch only |
+| Carrier state mapping admin | ⚠️ Router not registered |
+| OpenAPI documentation | ⚠️ Branch only |
+| Type A webhook simulator | ✅ Working (standalone) |
+| Type B pull simulator | ✅ Working (separate repo) |
+| Type C file simulator | ⚠️ Branch only |
+| RabbitMQ queue | ⚠️ Branch only |
+| End-to-end ingestion pipeline | ❌ Not yet implemented |
+| RN-02 terminal state protection | ❌ Not yet enforced |
