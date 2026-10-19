@@ -1,0 +1,129 @@
+---
+id: type-c-batch
+title: Type C Batch File Simulator
+sidebar_position: 4
+---
+
+# Type C Batch File Simulator
+
+Standalone module and CLI for generating synthetic tracking and status files for Type C batch carriers with configurable defect injection, plus idempotent database seeding for WMS integration.
+
+> This implements **F5 — Type C carrier files** (user story **HU-19**, RIWI-88).
+
+## The 3 Type C carriers
+
+| Carrier | Code | Default format | Status language |
+|---|---|---|---|
+| TransExpress Logistics | `CARRIER_1` | CSV | Technical English |
+| Rápido Andino | `CARRIER_2` | XLSX | Operational Spanish |
+| Logística 360 | `CARRIER_3` | CSV | Numeric codes |
+
+### Status catalogs
+
+Each carrier maps its proprietary statuses to the 8 canonical states:
+
+**Carrier 1 — TransExpress Logistics:**
+
+| Raw status | Canonical status |
+|---|---|
+| `DOC_REC` | `CREATED` |
+| `DISPATCHED` | `PICKED_UP` |
+| `IN_DEPOT` | `IN_TRANSIT` |
+| `OUT_DELIVERY` | `OUT_FOR_DELIVERY` |
+| `INCIDENCE` | `EXCEPTION` |
+| `DELIVERED` | `DELIVERED` |
+| `RETURN_SENDER` | `RETURNED` |
+| `DAMAGED_CARGO` | `LOST_OR_DAMAGED` |
+
+**Carrier 2 — Rápido Andino:**
+
+| Raw status | Canonical status |
+|---|---|
+| `REGISTRADO` | `CREATED` |
+| `RECOLECTADO` | `PICKED_UP` |
+| `TRASLADO_INTERNO` | `IN_TRANSIT` |
+| `RUTA_ENTREGA` | `OUT_FOR_DELIVERY` |
+| `NOVEDAD_DIRECCION` | `EXCEPTION` |
+| `ENTREGADO_OK` | `DELIVERED` |
+| `DEVUELTO_ORIGEN` | `RETURNED` |
+| `EXTRAVIO` | `LOST_OR_DAMAGED` |
+
+**Carrier 3 — Logística 360:**
+
+| Raw status | Canonical status |
+|---|---|
+| `10` | `CREATED` |
+| `20` | `PICKED_UP` |
+| `30` | `IN_TRANSIT` |
+| `40` | `OUT_FOR_DELIVERY` |
+| `50` | `EXCEPTION` |
+| `90` | `DELIVERED` |
+| `91` | `RETURNED` |
+| `99` | `LOST_OR_DAMAGED` |
+
+## Defect injection engine
+
+The simulator injects configurable data quality defects to test robustness:
+
+| Defect type | Description |
+|---|---|
+| Header corruption | Noise or repeated headers mid-file |
+| Null/missing columns | Mandatory columns left empty |
+| Unmapped status codes | Status values not in the carrier's catalog |
+| Trailing totals | Summary rows appended after data rows |
+| Whitespace/encoding | Invisible characters and encoding variations |
+
+## CLI usage
+
+```bash
+# Run with defaults (Carrier 1, 100 rows, 10% error rate, seed 42)
+uv run type-c-sim
+
+# Customize generation
+uv run python -m simulators.type_c.cli \
+  --carrier 2 \
+  --rows 500 \
+  --error-rate 0.05 \
+  --seed 123 \
+  --format csv
+```
+
+| Flag | Description | Default |
+|---|---|---|
+| `--seed` | Random seed for deterministic reproducibility | `42` |
+| `--carrier` | Carrier identifier (1 to 3) | `1` |
+| `--output-dir` | Destination directory for generated files | `./data/type_c` |
+| `--rows` | Number of base rows to generate | `100` |
+| `--error-rate` | Anomaly injection rate (0.0 to 1.0) | `0.1` |
+| `--format` | Force output format (`csv` or `xlsx`) | Carrier's native format |
+
+## WMS database seeder
+
+The module also includes an idempotent WMS seeder (`simulators.seed`) that initializes:
+
+- Shipment types, distribution centers, and commercial brands.
+- Carriers and their state mappings.
+- Orders, order lines, recipients, and shipping labels.
+
+```bash
+export DATABASE_URL="postgresql+asyncpg://user:pass@localhost:5432/cargaexpress"
+export SEED_PROFILE="dev"  # or "full"
+uv run python -m simulators.seed
+```
+
+The seeder has strict environment guards to prevent accidental execution against production databases.
+
+## Running with Docker
+
+```bash
+# Seed the WMS database
+docker compose -f docker-compose.seed.yml up --build
+```
+
+## File schema per carrier
+
+**Carrier 1 columns:** `waybill_no`, `status_code`, `status_description`, `event_time`, `hub_city`
+
+**Carrier 2 columns:** `numero_guia`, `estado_operativo`, `fecha_hora_evento`, `sucursal`, `observaciones`
+
+**Carrier 3 columns:** `tracking_code`, `code`, `event_date`, `center_id`
