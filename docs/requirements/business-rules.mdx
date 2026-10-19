@@ -6,27 +6,94 @@ sidebar_position: 2
 
 # Business Rules: RN-01 to RN-10
 
-The project backlog defines a business-rule set `RN-01` through `RN-10`. The available conversation context confirms the purpose of the first two rules but does not preserve the full verbatim text of all ten. The table therefore separates confirmed information from details that must be copied from the approved backlog rather than reconstructed from memory.
+The project defines ten business rules. Their content has been reconstructed from the code, seed data, architecture decisions, and documentation across all project repositories.
 
-| ID | Confirmed topic | Documentation status |
-|---|---|---|
-| `RN-01` | Canonical shipment-state catalog | Captured on the [Canonical Shipment States](./canonical-states.mdx) page. The approved backlog remains authoritative for exact wording and validation details. |
-| `RN-02` | Shipment-state transition rules | Confirmed: final states must not regress; later conflicting events are anomalies. The complete transition matrix and exact final-state list require verification against the approved backlog. |
-| `RN-03` | Full wording not present in retrieved context | Transcribe from the approved backlog before sign-off. |
-| `RN-04` | Full wording not present in retrieved context | Transcribe from the approved backlog before sign-off. |
-| `RN-05` | Full wording not present in retrieved context | Transcribe from the approved backlog before sign-off. |
-| `RN-06` | Full wording not present in retrieved context | Transcribe from the approved backlog before sign-off. |
-| `RN-07` | Order-to-label relationship | Confirmed: one order may have multiple shipping labels. The complete rule wording and edge cases must be verified against the approved backlog. |
-| `RN-08` | Full wording not present in retrieved context | Transcribe from the approved backlog before sign-off. |
-| `RN-09` | Full wording not present in retrieved context | Transcribe from the approved backlog before sign-off. |
-| `RN-10` | Full wording not present in retrieved context | Transcribe from the approved backlog before sign-off. |
+## RN-01 — Canonical shipment-state catalog
+
+The system uses exactly 8 canonical states. All carrier-specific statuses must be mapped to one of these values using the `state_mapping` table. No other canonical values are allowed.
+
+**States:** `CREATED`, `PICKED_UP`, `IN_TRANSIT`, `OUT_FOR_DELIVERY`, `EXCEPTION`, `DELIVERED`, `RETURNED`, `LOST_OR_DAMAGED`.
+
+**Implementation:** `StateMapping` model with a `CHECK` constraint in PostgreSQL. Admin API at `/api/v1/admin/state-mappings`. See [Canonical Shipment States](./canonical-states.mdx).
+
+## RN-02 — State transition rules and final-state protection
+
+Terminal states — `DELIVERED`, `RETURNED`, and `LOST_OR_DAMAGED` — are **irreversible**. Any carrier event that attempts to transition a shipment backward from a terminal state must be:
+
+1. Recorded in the raw event log for traceability.
+2. Rejected at the normalization layer — the canonical status must not be updated.
+3. Flagged as an anomaly for operational review.
+
+**Implementation status:** The rule is defined and documented. The `PATCH /orders/{id}/status` endpoint currently performs **direct** status updates without checking for terminal state regression. Full enforcement is pending.
+
+**Test scenario:** `SCN-07` creates an event arriving after `DELIVERED` to validate this rule.
+
+## RN-03 — SLA calculation in business days
+
+The SLA is measured in **business days**, excluding Sundays and public holidays of the **destination** country. A **16:00 cut-off** determines when the business day count begins:
+
+- An order dispatched **before 16:00** starts counting on the same day.
+- An order dispatched **after 16:00** starts counting on the next business day.
+
+If the distribution center and the destination are in different countries, the clock uses the **destination calendar** (ADR-0010).
+
+**Test scenario:** `SCN-02` tests the Friday 17:00 dispatch with a Monday holiday. `SCN-12` tests cross-country calendar usage (DC in Mexico, destination Peru).
+
+## RN-04 — At-risk order detection
+
+An order is classified as **at risk** when either condition is met:
+
+- **24 business hours or less** remain before the SLA deadline and the order is **not** out for delivery.
+- An `EXCEPTION` has been **open for more than 12 hours**.
+
+**Test scenarios:** `SCN-08` (14 business hours remaining, still in transit = at risk), `SCN-09` (same dates but already out for delivery = not at risk), `SCN-10` (exception open for 16 hours = at risk).
+
+## RN-05 — Responsibility and delay attribution
+
+| Stage | Responsible |
+|---|---|
+| Creation to dispatch | Distribution center |
+| Dispatch to delivery | Carrier |
+| Issue caused by wrong address | Brand (no penalty) |
+| Issue with any other cause | Carrier |
+
+**Delay** = delivery date − SLA deadline. Penalty tiers: 1–2 days late → 5%, 3–5 days late → 10%, 6+ days late → 20% (test defaults from seed data).
+
+**Test scenarios:** `SCN-03` (carrier late), `SCN-04` (DC responsible, 54-hour dispatch), `SCN-05` (brand responsible, wrong address).
+
+## RN-06 — Raw event immutability and traceability
+
+Every incoming carrier event is stored **unchanged** in the raw event store with its original payload, a receiving timestamp, and a **hash** for deduplication. The hash is unique, so identical repeated messages cannot be stored twice. The raw event is **immutable** and partitioned by month (ADR-0007).
+
+## RN-07 — Order-to-label cardinality
+
+One order may have **multiple shipping labels** (e.g., multi-package shipments or relabeling after an exception). An order meets the SLA only if **every** shipping label is delivered on time. One late label makes the whole order non-compliant.
+
+**Implementation:** One-to-many `ORDER → SHIPPING_LABEL` relationship in the schema.
+
+**Test scenario:** `SCN-06` creates an order with 2 labels, one on time and one late.
+
+## RN-08 — Carrier and brand catalog integrity
+
+The carrier catalog and brand catalog must remain consistent. Invalid or orphaned references must be prevented. Foreign-key constraints enforce referential integrity for all relationships in the data model.
+
+**Implementation:** Foreign keys on all model relationships. `POST /api/v1/orders` validates that the brand, distribution center, and shipment type exist before creating the order.
+
+## RN-09 — Carrier compliance monitoring
+
+A carrier that falls below **85% on-time compliance** for two consecutive half-month periods is placed `UNDER_REVIEW`. A carrier with only one bad period remains `ACTIVO`.
+
+**Test scenario:** Carrier 12 in the seed data stays under 85% for two consecutive half-months and is `UNDER_REVIEW`. Carrier 11 has only one bad period and stays `ACTIVO`.
+
+## RN-10 — Seed data reproducibility and idempotency
+
+Seed data must use a **fixed seed value** and be **reproducible** (same seed → same data) and **idempotent** (running twice does not create duplicates). Configurable data quality defects (mixed dates, out-of-order events, duplicates, invalid tracking numbers) must be deterministic and clearly marked.
+
+**Implementation:** Seed scripts use `ON CONFLICT DO NOTHING`, fixed timestamps, and per-order random generators.
 
 ## Cross-cutting rules confirmed in project discussions
 
-- Keep the carrier catalog and brand catalog consistent; prevent invalid or orphaned references.
-- Support natural business keys and global identifiers where needed to correlate entities across systems.
-- Seed data must use a fixed seed and be reproducible and idempotent.
+- Support natural business keys and global identifiers to correlate entities across systems.
 - Carrier events may arrive out of order and may use different date formats.
-- Carrier-specific state catalogs must be mapped to the canonical catalog.
-
-> **Source integrity:** This page is intentionally not a replacement for the approved backlog. The exact RN-03–RN-06 and RN-08–RN-10 text was not present in the accessible conversation summary and must not be guessed.
+- Carrier-specific state catalogs must be explicitly and versionally mapped to the canonical catalog.
+- Unknown carrier statuses must be surfaced for review, never silently misclassified.
