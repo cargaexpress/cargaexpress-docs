@@ -1,0 +1,45 @@
+---
+id: data-model
+title: Conceptual Data Model and Keys
+sidebar_position: 2
+---
+
+# Conceptual Data Model and Keys
+
+The project discussions distinguish **natural keys** from **global identifiers**. The final ERD and exact key definitions must follow the approved data-model artifact; this page records the concepts that must be preserved.
+
+## Key strategy
+
+- **Natural key:** a business/source identifier that already exists in the relevant domain, such as a carrier tracking number or an external carrier reference. Its uniqueness scope must be explicit; a tracking number should not automatically be assumed globally unique across all carriers.
+- **Global identifier:** an internal identifier used by CargaExpress to correlate records across carriers, systems, and services.
+- **Source identity:** retain the carrier/source identity alongside external IDs so that collisions across carriers can be resolved deterministically.
+
+A useful conceptual pattern is to identify a shipment using a CargaExpress global ID while retaining the carrier ID and tracking number as a source-scoped natural key. Confirm the exact ERD and uniqueness constraints before implementing this pattern.
+
+## Conceptual entities to account for
+
+- Brand
+- Distribution center
+- Carrier
+- Customer order
+- Shipment/package
+- Shipping label
+- Raw carrier event
+- Canonical shipment status
+- Carrier-status mapping
+- SLA/risk rule
+- Exception or incident
+
+Billing, settlement, and penalty entities belong to the wider business context, but their implementation scope depends on the approved sprint plan.
+
+## Order-to-label cardinality
+
+`RN-07` is associated with the rule that **one order may have multiple shipping labels**. The model must therefore support a one-to-many order-to-label relationship unless the approved backlog states a more specific exception. Do not use a single label field on the order as the only representation of labels.
+
+## Data integrity
+
+- Enforce referential integrity for brands, carriers, distribution centers, orders, and labels.
+- Define uniqueness constraints based on the actual source scope.
+- Preserve source event identity to support idempotent processing and duplicate detection.
+- Use migrations and versioned seed scripts to make the database reproducible.
+- Seed data must be deterministic, fixed-seed, and idempotent.

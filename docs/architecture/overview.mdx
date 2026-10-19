@@ -1,0 +1,50 @@
+---
+id: architecture-overview
+title: Architecture Overview
+sidebar_position: 1
+---
+
+# Architecture Overview
+
+## Architectural goal
+
+The Control Tower must integrate heterogeneous carrier systems while keeping carrier-specific behavior isolated from core shipment rules. The WMS supports warehouse operations; the Control Tower consolidates shipment events and applies common domain rules.
+
+## Logical components
+
+| Component | Responsibility | Status note |
+|---|---|---|
+| Carrier adapters | Connect to a carrier through push, pull, or file-based exchange and retain source-specific parsing | Planned integration boundary; end-to-end ingestion was reported as not yet implemented in the latest status shared. |
+| Raw event intake | Validate and retain incoming source events for traceability | Target capability. |
+| Normalization layer | Map carrier status codes/names to canonical states and normalize timestamps | Required by RN-01 and carrier-integration context. |
+| Domain/rules layer | Enforce transition rules and support SLA/risk calculations | Business rules are backlog-driven; full RN details must be verified. |
+| Persistence layer | Store business entities, shipment state, event history, and mappings | Relational model and key strategy require approved ERD/ADR alignment. |
+| WMS modules | Manage orders, shipping labels, picking, fulfillment, and dispatch | In-scope product capabilities. |
+| Reporting/settlement outputs | Provide consistent data for operational analysis and periodic billing/settlement | Some downstream reporting and penalties are outside the known Sprint 3 scope. |
+
+## Recommended module boundaries
+
+1. **API and interface layer:** HTTP endpoints, authentication/configuration where specified, request validation, and health checks.
+2. **Integration layer:** carrier-specific adapters, polling schedule, file parsing, retry/error handling, and source contracts.
+3. **Application layer:** orchestration of ingestion and business use cases.
+4. **Domain layer:** canonical statuses, transition rules, SLA/risk policies, and order/label relationships.
+5. **Persistence layer:** repositories, database models, migrations, seed scripts, and transaction boundaries.
+6. **Operations layer:** logging, health checks, configuration, containerization, and deployment automation.
+
+These are logical boundaries for documentation and design review, not a claim that every layer has already been implemented as a separate deployable service.
+
+## Data-ingestion patterns
+
+- **Push:** a carrier sends an event to a CargaExpress endpoint, for example through a webhook.
+- **Pull:** CargaExpress queries a carrier API by tracking number or through an agreed polling contract.
+- **File:** a carrier or partner supplies a batch file that is validated and imported.
+
+The integration architecture should permit carrier-specific adapters without duplicating canonical business rules.
+
+## Cross-cutting requirements
+
+- Preserve source traceability and avoid silent data loss.
+- Handle out-of-order events and inconsistent date formats.
+- Use fixed-seed, reproducible, idempotent seed scripts.
+- Keep brand, carrier, order, and label relationships consistent.
+- Use explicit, versioned contracts and documented error behavior.

@@ -1,0 +1,32 @@
+---
+id: architecture-decisions
+title: Architecture Decisions and ADR Register
+sidebar_position: 3
+---
+
+# Architecture Decisions and ADR Register
+
+The Sprint 1 Definition of Done discussed an initial architecture, at least two Architecture Decision Records (ADRs), a data model, and a reproducible seed. The register below distinguishes confirmed project constraints from decisions that still require a signed-off ADR.
+
+## Decision register
+
+| ID | Topic | Current record | Approval status |
+|---|---|---|---|
+| ADR-001 | Canonical shipment-state catalog | Normalize carrier-specific values to the eight canonical states defined by RN-01. | Requirement confirmed; formal ADR approval must be verified. |
+| ADR-002 | State transitions and final-state protection | Final states must not regress; conflicting later events are anomalies. | Rule confirmed; exact transition matrix must be verified. |
+| ADR-003 | Carrier integration patterns | The target architecture considers push, pull, and file ingestion. | Architecture direction confirmed; implementation choices per carrier remain contract-dependent. |
+| ADR-004 | Natural keys and global identifiers | Both concepts are part of the data-model discussion; uniqueness scope and ERD need to be explicit. | Exact schema decision requires approved ERD/ADR. |
+| ADR-005 | Type B simulator storage | Earlier discussion preferred avoiding unnecessary infrastructure and reusing PostgreSQL if viable. A later implementation description referenced four independent services using PostgreSQL, MySQL, MongoDB, and SQLite. | **Reconciliation required:** document the final choice based on the actual simulator repository and team decision. |
+
+## ADR template
+
+Each accepted ADR should include:
+
+- **Status:** Proposed, Accepted, Deprecated, or Superseded.
+- **Context:** the problem and constraints.
+- **Decision:** the selected option, written unambiguously.
+- **Alternatives considered:** include the reasons for rejection.
+- **Consequences:** operational, cost, reliability, and maintenance impacts.
+- **Traceability:** related RN/F/HU/US IDs.
+
+Do not mark a proposed decision as Accepted until the team has reviewed it.
