@@ -1,0 +1,47 @@
+---
+id: story-format-and-traceability
+title: User Stories and Traceability
+sidebar_position: 1
+---
+
+# User Stories and Traceability
+
+## Required user-story format
+
+Write stories consistently using:
+
+> As a **[role or actor]**, I want **[capability]**, so that **[business value]**.
+
+Each story must have acceptance criteria written in Given/When/Then form:
+
+- **Given** — the starting context or preconditions.
+- **When** — the action or event.
+- **Then** — the observable expected result.
+
+Keep the story and each acceptance criterion concise and independently testable. Do not add implementation detail to the user story unless it is a genuine constraint; place technical tasks and design notes separately.
+
+## Traceability chain
+
+For each requirement, maintain traceability across:
+
+1. Business need or rule (`RN-*`).
+2. Functional requirement (`F*`) when applicable.
+3. User story (`US-*` or `HU-*`).
+4. Acceptance criteria.
+5. Technical task or implementation component.
+6. Test evidence and delivery status.
+
+A requirement should not be marked complete solely because a story has been written. Completion requires acceptance evidence and review against the Definition of Done agreed by the team.
+
+## Backlog review expectations
+
+- Use stable IDs; do not renumber stories casually.
+- Keep terminology consistent across the backlog, domain model, API contracts, and documentation.
+- Ensure each story is estimable, testable, and has clear dependencies.
+- Use MoSCoW priority only where the approved backlog provides a priority.
+- Record unresolved decisions rather than silently selecting an implementation.
+- Keep the traceability matrix synchronized when stories or acceptance criteria change.
+
+## Known Sprint 1 story range
+
+A Sprint 1 proposal discussed `US-01` through `US-15`, covering business/actors, RN-01–RN-10, F1–F7, quality requirements, data model, integrations, architecture/ADRs, repository setup, and reproducible seed data. The exact one-to-one mapping of each `US-*` ID to a topic is not available in the accessible summary; preserve the approved backlog mapping rather than inventing one.
