@@ -1,26 +1,161 @@
 ---
 id: architecture-decisions
-title: Architecture Decisions and ADR Register
+title: Architecture Decision Records
 sidebar_position: 3
 ---
 
-# Architecture Decisions and ADR Register
+# Architecture Decision Records (ADR)
 
-The Sprint 1 Definition of Done discussed an initial architecture, at least two Architecture Decision Records (ADRs), a data model, and a reproducible seed. The register below distinguishes confirmed project constraints from decisions that still require a signed-off ADR.
+Each ADR explains one technical decision: context, decision, consequences, and evidence. In Jira, this work is tracked as **US-09 (RIWI-48)**.
 
 ## Decision register
 
-| ID | Topic | Current record | Approval status |
+| Record | Decision | Origin | Status |
 |---|---|---|---|
-| ADR-001 | Canonical shipment-state catalog | Normalize carrier-specific values to the eight canonical states defined by RN-01. | Requirement confirmed; formal ADR approval must be verified. |
-| ADR-002 | State transitions and final-state protection | Final states must not regress; conflicting later events are anomalies. | Rule confirmed; exact transition matrix must be verified. |
-| ADR-003 | Carrier integration patterns | The target architecture considers push, pull, and file ingestion. | Architecture direction confirmed; implementation choices per carrier remain contract-dependent. |
-| ADR-004 | Natural keys and global identifiers | Both concepts are part of the data-model discussion; uniqueness scope and ERD need to be explicit. | Exact schema decision requires approved ERD/ADR. |
-| ADR-005 | Type B simulator storage | Earlier discussion preferred avoiding unnecessary infrastructure and reusing PostgreSQL if viable. A later implementation description referenced four independent services using PostgreSQL, MySQL, MongoDB, and SQLite. | **Reconciliation required:** document the final choice based on the actual simulator repository and team decision. |
+| ADR-0001 | FastAPI, async SQLAlchemy, and PostgreSQL as the backend stack | Backend foundation | Accepted |
+| ADR-0002 | Docker Compose, multi-stage image, and migrations on start | US-07 | Accepted |
+| ADR-0003 | 8 canonical statuses with a database-backed mapping | HU-12 | Accepted |
+| ADR-0004 | In-memory cache with TTL and invalidation on write | HU-12 | Accepted |
+| ADR-0005 | Shared admin token, closed by default | HU-12 | Accepted |
+| ADR-0006 | Webhook simulator as an independent service | HU-17 | Accepted |
+| ADR-0007 | Raw events stored unchanged and deduplicated by hash | Architecture v1 | Proposed |
+| ADR-0008 | Push, pull, and file ingestion converge on one raw store | Architecture v1 | Proposed |
+| ADR-0009 | Layered data lake and a star schema for analytics | Architecture v1 | Proposed |
+| ADR-0010 | UTC storage with calendar and cut-off by country | Architecture v1 | Proposed |
+
+---
+
+## ADR-0001: Backend stack
+
+**Status:** Accepted · **Origin:** Backend foundation
+
+**Context:** The project needs a backend API for order management, state mapping, and carrier integration. It should support async I/O for future webhook ingestion and be compatible with the team's Python expertise.
+
+**Decision:** FastAPI with async SQLAlchemy and PostgreSQL. Alembic for versioned migrations. uv for package management.
+
+**Consequences:** Fast async API, automatic OpenAPI documentation, strong ORM with type-annotated models. The team must learn async SQLAlchemy patterns.
+
+---
+
+## ADR-0002: Docker Compose and migrations on start
+
+**Status:** Accepted · **Origin:** US-07 (RIWI-40)
+
+**Context:** Developers need a reproducible local environment without manual database setup.
+
+**Decision:** Docker Compose runs the backend and PostgreSQL. The backend image uses a multi-stage Dockerfile. Before starting FastAPI, the entrypoint runs `alembic upgrade head` automatically.
+
+**Consequences:** One command (`docker compose up`) sets up everything. Schema changes are applied on every start. The image is production-ready without dev dependencies.
+
+---
+
+## ADR-0003: Canonical statuses and state mapping
+
+**Status:** Accepted · **Origin:** HU-12 (RIWI-57)
+
+**Context:** Each carrier uses its own status vocabulary. The Control Tower needs one set of rules regardless of the source.
+
+**Decision:** Define exactly 8 canonical statuses (`CREATED`, `PICKED_UP`, `IN_TRANSIT`, `OUT_FOR_DELIVERY`, `EXCEPTION`, `DELIVERED`, `RETURNED`, `LOST_OR_DAMAGED`). Store the mapping in a `state_mapping` table with a `UNIQUE(carrier_id, raw_status)` constraint and a `CHECK` that limits canonical values. Use strings plus a CHECK constraint instead of a database enum to avoid migration complexity for catalog changes.
+
+**Consequences:** Adding a carrier status requires only a new row, not a schema migration. Direct database writes are also validated. Each simulated carrier has at least 6 distinct source statuses.
+
+---
+
+## ADR-0004: State mapping cache
+
+**Status:** Accepted · **Origin:** HU-12
+
+**Context:** The state mapping is read on every event normalization. Querying the database each time adds unnecessary latency.
+
+**Decision:** Cache the mappings in memory with a 300-second TTL. Invalidate the cache after every committed write through the admin API. The next read after invalidation loads fresh data.
+
+**Consequences:** Near-zero latency for resolves. Changes via the admin API are immediately visible in the same process. In multi-process deployments, propagation may take up to the TTL.
+
+---
+
+## ADR-0005: Admin API authentication
+
+**Status:** Accepted · **Origin:** HU-12
+
+**Context:** The state mapping admin API should not be accessible to regular API consumers.
+
+**Decision:** Protect admin endpoints with an `X-Admin-Token` header. The token is configured via `ADMIN_API_KEY` in `.env`. If the variable is empty, the admin API responds `503` (disabled by default). In production, the key must be at least 32 characters and must not start with `change_me`.
+
+**Consequences:** Simple, stateless authentication. The admin API is opt-in, disabled when no key is configured.
+
+---
+
+## ADR-0006: Independent webhook simulator
+
+**Status:** Accepted · **Origin:** HU-17 (RIWI-82)
+
+**Context:** The webhook simulator must not depend on the backend's database, dependencies, or deployment lifecycle.
+
+**Decision:** The simulator is an independent project with its own Dockerfile, Docker Compose, `pyproject.toml`, and test suite. It targets a configurable URL (`SIM_TARGET_URL_TEMPLATE`), defaulting to a local test receiver. It does not import or modify backend code.
+
+**Consequences:** The simulator can run without the backend, and the backend can run without the simulator. Adding the simulator to the backend's Docker Compose is a configuration choice, not a code dependency.
+
+---
+
+## ADR-0007: Immutable raw events
+
+**Status:** Proposed · **Origin:** Architecture v1
+
+**Context:** If the system only kept the final canonical state, a mistake in the rules could not be repaired and a lost message could not be proven.
+
+**Decision:** Every incoming message is stored first, unchanged, in `raw_event` with its original payload, the receiving time, and a unique hash. The hash prevents identical repeated messages. `raw_event` is immutable and partitioned by month. Interpreted data (`tracking_event`) is derived from it and can be reprocessed when rules change.
+
+**Consequences:** No event is ever lost. Duplicates are caught by the hash. Storage grows with every message, which is why the table is partitioned.
+
+---
+
+## ADR-0008: Three ingestion modalities
+
+**Status:** Proposed · **Origin:** US-03 (RIWI-23)
+
+**Context:** The 12 carriers deliver information in three different ways. The system needs one set of rules regardless of how data arrived.
+
+**Decision:**
+
+| Modality | Carriers | Mechanism |
+|---|---|---|
+| **A — Push** | 5 | Webhooks received by a FastAPI receiver, queued in RabbitMQ |
+| **B — Pull** | 4 | An Airflow DAG polls REST APIs every 30 minutes |
+| **C — File** | 3 | An Airflow DAG validates and cleans CSV/XLSX files every 4 hours |
+
+All three end as a row in `raw_event` and are normalized with the same rules. A webhook that fails 5 times goes to a dead-letter queue.
+
+**Consequences:** Adding a carrier changes the mapping data, not the rules. Each modality needs its own simulator.
+
+---
+
+## ADR-0009: Data lake and star schema
+
+**Status:** Proposed · **Origin:** US-03, US-04
+
+**Context:** Management, finance, and the control tower need history and trends. Brands must never see personal data in reports. The operational database should not carry heavy analytical queries.
+
+**Decision:** The S3 data lake has four layers (Landing, Bronze, Silver, Gold) stored as Parquet, partitioned by date. Gold contains no personal data and uses a star schema (not snowflake). The carrier dimension uses slowly changing dimension type 2. Queries run through Athena, and Power BI reads from it. The grain of the main fact table is one row per shipping label.
+
+**Consequences:** Pay-per-query analytics with no always-on warehouse. Spark ETL must keep Silver and Gold up to date.
+
+---
+
+## ADR-0010: UTC and business calendars
+
+**Status:** Proposed · **Origin:** US-03, US-04, RN-03
+
+**Context:** Orders are dispatched from distribution centers in one country and delivered in another. The SLA is counted in business days with a 16:00 cut-off, excluding Sundays and holidays of the destination country.
+
+**Decision:** All timestamps stored in UTC (`timestamptz`). The 16:00 cut-off and holidays are applied using the time zone of the distribution center and the calendar of the destination country. A `calendar_day` table stores per-country business day information.
+
+**Consequences:** Results do not depend on the server's time zone. Holiday data must be maintained for every country served.
+
+---
 
 ## ADR template
 
-Each accepted ADR should include:
+Each new ADR should include:
 
 - **Status:** Proposed, Accepted, Deprecated, or Superseded.
 - **Context:** the problem and constraints.
@@ -28,5 +163,3 @@ Each accepted ADR should include:
 - **Alternatives considered:** include the reasons for rejection.
 - **Consequences:** operational, cost, reliability, and maintenance impacts.
 - **Traceability:** related RN/F/HU/US IDs.
-
-Do not mark a proposed decision as Accepted until the team has reviewed it.
