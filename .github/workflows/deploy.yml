@@ -1,5 +1,4 @@
 
-@'
 name: Deploy Docusaurus to GitHub Pages
 
 on:
@@ -51,4 +50,3 @@ jobs:
       - name: Deploy to GitHub Pages
         id: deployment
         uses: actions/deploy-pages@v4
-'@ | Set-Content -Path .github\workflows\deploy.yml -Encoding utf8
