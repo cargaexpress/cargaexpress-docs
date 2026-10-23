@@ -1,0 +1,143 @@
+---
+id: airflow-orchestration
+title: Distributed Orchestration (Airflow & Celery)
+sidebar_position: 2
+---
+
+# Distributed Orchestration with Airflow, Celery & RabbitMQ
+
+This document details the architecture, design patterns, and operational procedures for the distributed batch orchestration layer of the CargaExpress Control Tower (Sprint 3 deliverables **E-12** and **E-13**).
+
+## 1. System Architecture
+
+The orchestration subsystem runs on Docker Compose (`docker-compose.airflow.yml`) connected to the internal bridge network `cargaexpress`:
+
+```
++-----------------------------------------------------------------------------------+
+| Docker Network: control_tower_cargaexpress                                        |
+|                                                                                   |
+|  +--------------------+         AMQP 5672        +-----------------------------+  |
+|  |  airflow-scheduler | -----------------------> |    rabbitmq                 |  |
+|  +--------------------+                          | (3-management-alpine)       |  |
+|            |                                     | Web UI: 15672               |  |
+|            | (Task definitions)                  +-----------------------------+  |
+|            v                                                    |                 |
+|  +--------------------+                                         v (Queue tasks)   |
+|  | airflow-webserver  |                          +-----------------------------+  |
+|  | Web UI: 8080       |                          |    airflow-worker           |  |
+|  +--------------------+                          |   (Celery Worker xN)        |  |
+|            |                                     +-----------------------------+  |
+|            |                                                    |                 |
+|            +-----------------------+----------------------------+                 |
+|                                    |                                              |
+|                                    v                                              |
+|                      +---------------------------+                                |
+|                      |        airflow-db         |                                |
+|                      |  (PostgreSQL 16 Metastore)|                                |
+|                      |   Host port: 5433         |                                |
+|                      +---------------------------+                                |
++-----------------------------------------------------------------------------------+
+```
+
+### Key Components
+
+1. **RabbitMQ Broker (`rabbitmq:3-management-alpine`)**: AMQP message broker for Celery queues (`5672`) and web management console (`15672`).
+2. **Airflow DB (`airflow-db`)**: Dedicated PostgreSQL 16 database for the Airflow metadata store (port `5433`), completely isolated from the operational WMS database.
+3. **Airflow Webserver**: Web UI administrative console running on port `8080`.
+4. **Airflow Scheduler**: Monitors DAG lifecycles and dispatches tasks to RabbitMQ using `CeleryExecutor`.
+5. **Airflow Workers**: Distributed Celery worker containers consuming tasks from the message queue with horizontal scaling support.
+
+---
+
+## 2. Design Conventions: TaskFlow API & Modular Client
+
+The orchestration layer follows modern data engineering best practices:
+
+- **TaskFlow API (`@dag` and `@task`)**: Eliminates imperative `PythonOperator` instantiation and manual XCom serialization. Values pass directly between task function calls.
+- **Modularization via `ControlTowerClient`**: DAGs do not execute raw SQL queries or duplicate business logic. Instead, they interact with the Control Tower backend through `dags/utils/control_tower_client.py` using decoupled HTTP endpoints (`POST /api/v1/sync/type-b` and `POST /api/v1/sync/type-c/upload`).
+- **Standardized English**: 100% of pipeline code, task names, logs, and docstrings are maintained in English.
+
+---
+
+## 3. Implemented DAG Pipelines
+
+### A. Type B Pull Polling Pipeline (`type_b_pull_polling`) — HU-27 (RIWI-135)
+
+Orchestrates periodic polling across the 4 Type B REST carrier APIs:
+
+- **Schedule**: `*/30 * * * *` (every 30 minutes, meeting source F4 contract).
+- **Resilience**: 3 retries with exponential backoff (`retry_exponential_backoff=True`) and a 20-minute ceiling to absorb carrier rate-limiting.
+- **Workflow Steps**:
+  1. `verify_backend_readiness`: Probes the `/api/v1/health` endpoint before triggering sync.
+  2. `poll_type_b_carriers`: Triggers `POST /api/v1/sync/type-b`, normalizing tracking statuses into canonical states (`RN-01` / `RN-02`).
+  3. `evaluate_polling_metrics`: Aggregates fetched events, records transition anomalies, and raises alerts on carrier failures.
+
+### B. Type C Batch File Ingestion Pipeline (`type_c_file_ingestion`) — HU-28 (RIWI-139)
+
+Processes periodic batch files (CSV/XLSX) deposited in `data/type_C_simulation_data/`:
+
+- **Schedule**: `0 */4 * * *` (every 4 hours, matching source F5).
+- **Workflow Steps**:
+  1. `scan_incoming_files`: Detects incoming `.csv` and `.xlsx` staging files.
+  2. `ingest_batch_files`: Injects files into `POST /api/v1/sync/type-c/upload`, dropping repeated headers, stripping summary rows, checking SHA-256 idempotency, and normalizing events.
+  3. `archive_processed_files`: Moves completed files to `processed/` with timestamp prefixes.
+
+### C. Distributed Validation Pipeline (`dag_distributed_validation`) — HU-30 (RIWI-147)
+
+Audits task distribution across multiple Celery workers:
+
+- **Workflow Steps**:
+  1. `init_distributed_test`: Captures dispatcher metadata and start timestamp.
+  2. `worker_probe_partition_[1..4]`: 4 concurrent fan-out tasks recording hostname, PID, IP, and execution timestamps.
+  3. `aggregate_distributed_evidence`: Fan-in task verifying that tasks executed across distinct worker containers (`VERIFIED_DISTRIBUTED`).
+
+---
+
+## 4. Horizontal Worker Scaling
+
+In `docker-compose.airflow.yml`, `airflow-worker` omits a static `container_name`, enabling native Docker Compose horizontal scaling:
+
+```bash
+# Scale to 3 Celery workers at runtime
+docker compose -f docker-compose.airflow.yml up -d --scale airflow-worker=3
+
+# Scale down to 2 workers
+docker compose -f docker-compose.airflow.yml up -d --scale airflow-worker=2
+```
+
+---
+
+## 5. Operational Runbook (Deliverable E-12)
+
+```bash
+# Trigger distributed validation DAG
+docker compose -f docker-compose.airflow.yml exec airflow-webserver airflow dags trigger dag_distributed_validation
+
+# View fan-in aggregator audit logs
+docker compose -f docker-compose.airflow.yml exec airflow-webserver airflow tasks logs dag_distributed_validation aggregate_distributed_evidence
+
+# Ping active Celery workers
+docker compose -f docker-compose.airflow.yml exec airflow-scheduler celery --app airflow.providers.celery.executors.celery_executor.app inspect ping
+
+# List RabbitMQ queues, message counts, and consumers
+docker compose -f docker-compose.airflow.yml exec rabbitmq rabbitmqctl list_queues name messages consumers
+```
+
+---
+
+## 6. Container Optimization Benchmark (Deliverable E-13)
+
+As part of User Story **HU-35 (RIWI-168)**, all Docker workloads across the platform were converted to hardened multi-stage builds, saving **over 1.1 GB of disk space**:
+
+| Component / Subsystem | Base / Single-Stage | Multi-Stage Optimized | Compressed Transfer Size | Footprint Reduction | Runtime User | Key Optimizations |
+| :--- | :--- | :--- | :--- | :--- | :--- | :--- |
+| **Backend (Control Tower API)** | python:3.12 (488 MB) | python:3.12-slim | **299 MB** | 69.6 MB | **-38.7%** | `appuser` (1000) | Stripped uv & gcc; bytecode compiled; `/api/v1/ready` healthcheck. |
+| **Airflow Orchestrator (Custom)** | Standard setup (~2.3 GB) | apache/airflow:2.9.3 pre-baked | **2.01 GB** | 407 MB | **-290 MB** | `airflow` (50000) | Alpine PostgreSQL & RabbitMQ; demo DAGs disabled; worker tuning. |
+| **Simulator A (Push Webhooks)** | python:3.12 (390 MB) | python:3.12-slim 3-stage | **205 MB** | 49.5 MB | **-47.4%** | `app` (10001) | Dedicated SQLite storage volume; isolated test stage. |
+| **Simulator B - Carrier A (PostgreSQL)** | python:3.12-slim (485 MB) | python:3.12-slim multi-stage | **305 MB** | 71.0 MB | **-37.1%** | `appuser` (1000) | Compiled virtualenv; stripped build tools; automatic migrations. |
+| **Simulator B - Carrier B (MySQL)** | python:3.12-slim (460 MB) | python:3.12-slim multi-stage | **278 MB** | 65.2 MB | **-39.5%** | `appuser` (1000) | Native PyMySQL driver; pre-compiled wheels. |
+| **Simulator B - Carrier C (MongoDB)** | python:3.12-slim (435 MB) | python:3.12-slim multi-stage | **249 MB** | 58.8 MB | **-42.7%** | `appuser` (1000) | Lean pymongo runtime; zero relational database overhead. |
+| **Simulator B - Carrier D (SQLite)** | python:3.12-slim (455 MB) | python:3.12-slim multi-stage | **277 MB** | 65.1 MB | **-39.1%** | `appuser` (1000) | Pre-configured `/data` directory with UID 1000 ownership. |
+| **Simulator B - Tools (Seed / Generator)** | python:3.12-slim (425 MB) | python:3.12-slim multi-stage | **258 MB** | 60.4 MB | **-39.3%** | `appuser` (1000) | Batch seed and background generator running as unprivileged user. |
+| **Simulator C (Batch Files & WMS Seed)** | python:3.12-slim (430 MB) | python:3.12-slim multi-stage | **257 MB** | 60.7 MB | **-40.2%** | `seeduser` (1000) | Frozen lockfile; uv binary stripped from final image. |
+

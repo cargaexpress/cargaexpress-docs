@@ -6,30 +6,62 @@ sidebar_position: 4
 
 # Sprint 3 — Orchestration, SLA, and Cloud Delivery
 
-The captured Sprint 3 backlog covers `HU-26` through `HU-40` and was associated with weeks 4–5 of the six-week project timeline.
+Sprint 3 covers `HU-26` through `HU-40` across weeks 4–5 of the project timeline, focusing on distributed batch orchestration with Airflow and Celery, business-day SLA computation, and production cloud delivery on AWS.
 
-## Story groups
+## Story Groups & Progress Status
 
-| Story IDs | Focus captured in the backlog summary |
-|---|---|
-| `HU-26`–`HU-30` | Orchestration and asynchronous processing using Airflow, Celery, and RabbitMQ. |
-| `HU-31`–`HU-33` | Business-day SLA rules and at-risk order logic. |
-| `HU-34`–`HU-40` | AWS optimization and deployment, including Docker, ECR, RDS, ECS/Fargate, and CI/CD. |
+| Story Key | Story Title | Assignee | Status | Deliverable Reference |
+|---|---|---|---|---|
+| `RIWI-131` | `HU-26` — Set up Airflow in Docker | Joshua Quintero | **Done** | Core Airflow Compose (`docker-compose.airflow.yml`) |
+| `RIWI-135` | `HU-27` — Pull polling DAG for type-B carriers | Joshua Quintero | **Done** | TaskFlow DAG (`type_b_pull_polling`, 30 min schedule) |
+| `RIWI-139` | `HU-28` — Type-C file ingestion DAG | Joshua Quintero | **Done** | TaskFlow DAG (`type_c_file_ingestion`, 4 h schedule) |
+| `RIWI-143` | `HU-29` — Configure CeleryExecutor with RabbitMQ | Joshua Quintero | **Done** | CeleryExecutor on RabbitMQ AMQP broker |
+| `RIWI-147` | `HU-30` — Scale workers & validate distributed execution | Joshua Quintero | **Done** | **Deliverable E-12**: Runbook and validation DAG |
+| `RIWI-151` | `HU-31` — Business-day SLA calculation service | Helda Reyes | **To Do** | Business-day rules (`RN-03`, 4:00 PM cutoff) |
+| `RIWI-155` | `HU-32` — At-risk order calculation | Helda Reyes | **To Do** | At-risk alert conditions (`RN-04`) |
+| `RIWI-160` | `HU-33` — SLA and at-risk order endpoints | Helda Reyes | **To Do** | `GET /orders/{id}/sla` & `GET /orders/at-risk` |
+| `RIWI-164` | `HU-34` — Optimize backend Dockerfile multi-stage | Joshua Quintero | **Done** | Backend image reduced to 299 MB (-38.7%) |
+| `RIWI-168` | `HU-35` — Optimize simulator and Airflow Dockerfiles | Joshua Quintero | **Done** | **Deliverable E-13**: Platform benchmark report |
+| `RIWI-172` | `HU-36` — Create ECR repositories & publish images | Alexandra Peña | **To Do** | Amazon ECR repositories |
+| `RIWI-176` | `HU-37` — Automate build and push to ECR | Alexandra Peña | **To Do** | Automated publishing script |
+| `RIWI-181` | `HU-38` — Migrate database from local Postgres to RDS | Alexandra Peña | **To Do** | Amazon RDS PostgreSQL + Alembic |
+| `RIWI-185` | `HU-39` — Deploy backend to ECS/Fargate | Alexandra Peña | **To Do** | ECS Fargate Service & ALB healthcheck |
+| `RIWI-189` | `HU-40` — Complete CI/CD deployment pipeline | Alexandra Peña | **To Do** | GitHub Actions workflow to ECS |
 
-The original backlog contains acceptance criteria, dependencies, MoSCoW priorities, and technical tasks. Those exact per-story details must be copied from the approved backlog; they are not reconstructed here where the wording was not preserved in the accessible summary.
+---
 
-## Explicit exclusions from this Sprint 3 scope
+## Deliverable E-12: Operational Runbook for Celery on RabbitMQ
 
-- Penalty implementation.
-- A Power BI dimensional model.
-- Kubernetes as the primary project goal.
+Completed under **HU-30 (RIWI-147)**:
+- Zero-collision horizontal worker scaling using `docker compose up -d --scale airflow-worker=N`.
+- Fan-out / fan-in audit validation pipeline (`dag_distributed_validation`) built with TaskFlow API decorators (`@dag`, `@task`).
+- Verified multi-node process execution and documented troubleshooting matrix in [Airflow Orchestration Guide](../operations/airflow-orchestration.mdx).
 
-These exclusions apply to the captured Sprint 3 scope. They do not imply that penalties or reporting are irrelevant to the wider business vision.
+---
 
-## Validation focus
+## Deliverable E-13: Container Optimization Benchmark Report
 
-- Scheduled or asynchronous work is observable and recoverable.
-- Business-day calculations use the agreed calendar and SLA definitions.
-- At-risk order decisions are traceable to the rule and source data that produced them.
-- Cloud deployment and CI/CD configuration are reproducible and do not expose secrets.
-- Infrastructure costs are reviewed against the team's approved budget before deployment.
+Completed under **HU-34 (RIWI-164)** and **HU-35 (RIWI-168)**:
+- Standardized all application and simulator containers on hardened multi-stage builds (`python:3.12-slim`).
+- Replaced root execution with unprivileged users (`appuser` UID 1000, `app` UID 10001, `airflow` UID 50000).
+- **Saved over 1.1 GB of aggregate storage** across the entire platform ecosystem:
+
+| Service | Base Size | Multi-Stage Size | Reduction | Runtime User |
+|---|---|---|---|---|
+| Control Tower API (Backend) | 488 MB | **299 MB** | **-38.7%** | `appuser` (1000) |
+| Airflow Orchestration Image | ~2.3 GB | **2.01 GB** | **-290 MB** | `airflow` (50000) |
+| Simulator A (Push Webhooks) | 390 MB | **205 MB** | **-47.4%** | `app` (10001) |
+| Simulator B — Carrier A (Postgres) | 485 MB | **305 MB** | **-37.1%** | `appuser` (1000) |
+| Simulator B — Carrier B (MySQL) | 460 MB | **278 MB** | **-39.5%** | `appuser` (1000) |
+| Simulator B — Carrier C (MongoDB) | 435 MB | **249 MB** | **-42.7%** | `appuser` (1000) |
+| Simulator B — Carrier D (SQLite) | 455 MB | **277 MB** | **-39.1%** | `appuser` (1000) |
+| Simulator B — Tools (Seed & Load) | 425 MB | **258 MB** | **-39.3%** | `appuser` (1000) |
+| Simulator C (Batch Files & Seed) | 430 MB | **257 MB** | **-40.2%** | `seeduser` (1000) |
+
+---
+
+## Explicit Exclusions from Sprint 3 Scope
+
+- Penalty implementation (deferred to later contract lifecycle).
+- A Power BI dimensional model (addressed in Sprint 6).
+- Kubernetes / EKS (evaluated in architectural spike; ECS/Fargate selected for production).

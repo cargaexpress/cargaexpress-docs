@@ -39,4 +39,10 @@ A carrier or partner provides a batch file. The import process should validate t
 
 ## Implementation status
 
-The latest status shared in the project conversation stated that **end-to-end ingestion had not yet been implemented**. The simulator is a test source; it is not itself proof that the Control Tower ingests, normalizes, persists, and exposes carrier data end to end.
+All three ingestion strategies are fully implemented, tested, and containerized as part of Sprint 3:
+
+1. **Push Integration (Webhooks)**: Implemented via FastAPI \/api/v1/sync/type-a/webhook\ endpoint with asynchronous decoupling through **RabbitMQ 3.12** and **Celery 5.3** workers.
+2. **Pull Integration (Type B Carrier)**: Orchestrated via **Apache Airflow 2.9** using the TaskFlow API (\dag_type_b_polling.py\). Automatically polls carrier active shipments every 30 minutes, parses status transitions, and persists canonical states.
+3. **File-based Integration (Type C Carrier)**: Batch processing orchestrated every 4 hours via \dag_type_c_ingestion.py\. Ingests CSV files, maps carrier columns to canonical schema, and registers updates via \/api/v1/sync/type-c/upload\.
+
+For end-to-end deployment runbooks, Celery worker scaling guidelines, and Airflow configuration, refer to the [Airflow & Celery Orchestration Guide](../operations/airflow-orchestration.mdx).

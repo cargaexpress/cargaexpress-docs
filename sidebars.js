@@ -1,5 +1,4 @@
-﻿
- // @ts-check
+// @ts-check
 
 const sidebars = {
   tutorialSidebar: [
@@ -76,6 +75,7 @@ const sidebars = {
       label: 'Operations',
       items: [
         'operations/local-development',
+        'operations/airflow-orchestration',
         'operations/testing-guide',
       ],
     },

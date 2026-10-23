@@ -16,7 +16,10 @@ The Control Tower backend is built with Python and FastAPI (ADR-0001), using asy
 | **ORM** | SQLAlchemy 2.x (async) | Declarative models with type annotations |
 | **Migrations** | Alembic | Versioned schema migrations, auto-generated from models |
 | **Database** | PostgreSQL 16 | Transactional store for all operational data |
-| **Containerization** | Docker + Docker Compose | Multi-stage builds, automatic migration on start |
+| **Message broker** | RabbitMQ 3.12 | AMQP message broker for asynchronous event ingestion |
+| **Task queue** | Celery 5.3 | Distributed task processing for payload normalization |
+| **Orchestration** | Apache Airflow 2.9 | TaskFlow API (@dag, @task) for polling and batch ingestion |
+| **Containerization** | Docker + Docker Compose | Multi-stage production builds, automatic migration on start |
 | **Package manager** | uv | Fast, deterministic dependency resolution |
 | **Linting** | Ruff | Lint and format checking (100-char line length) |
 | **Type checking** | mypy | Static type analysis |
@@ -33,6 +36,7 @@ cargaexpress_control_tower/
 │   │   ├── routers/        # FastAPI route handlers
 │   │   ├── schemas/        # Pydantic request/response schemas
 │   │   ├── services/       # Business logic layer
+│   │   ├── tasks/          # Celery asynchronous tasks (webhooks & events)
 │   │   ├── config.py       # Settings from environment variables
 │   │   ├── database.py     # SQLAlchemy engine and session
 │   │   ├── main.py         # FastAPI application factory
@@ -42,6 +46,12 @@ cargaexpress_control_tower/
 │   ├── tests/              # pytest test suite
 │   ├── Dockerfile          # Multi-stage production image
 │   └── pyproject.toml      # Dependencies and tool configuration
+├── dags/                   # Apache Airflow 2.9 DAGs (TaskFlow API)
+│   ├── dag_type_b_polling.py       # Polling Carrier B active tracking every 30m
+│   ├── dag_type_c_ingestion.py     # Batch CSV ingestion Carrier C every 4h
+│   ├── dag_distributed_validation.py # Validation and health check DAG
+│   └── utils/
+│       └── control_tower_client.py # Modular reusable HTTP client for DAGs
 ├── docs/api/
 │   └── openapi.json        # Exported OpenAPI contract
 ├── scripts/
