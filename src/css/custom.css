@@ -1,30 +1,115 @@
-/**
- * Any CSS included here will be global. The classic template
- * bundles Infima by default. Infima is a CSS framework designed to
- * work well for content-centric websites.
- */
 
-/* You can override the default Infima variables here. */
+/* CargaExpress - Global interface */
+
 :root {
-  --ifm-color-primary: #2e8555;
-  --ifm-color-primary-dark: #29784c;
-  --ifm-color-primary-darker: #277148;
-  --ifm-color-primary-darkest: #205d3b;
-  --ifm-color-primary-light: #33925d;
-  --ifm-color-primary-lighter: #359962;
-  --ifm-color-primary-lightest: #3cad6e;
-  --ifm-code-font-size: 95%;
-  --docusaurus-highlighted-code-line-bg: rgba(0, 0, 0, 0.1);
+  --ifm-navbar-height: 72px;
+  --ifm-code-border-radius: 8px;
+  --ifm-global-radius: 12px;
 }
 
-/* For readability concerns, you should choose a lighter palette in dark mode. */
-[data-theme='dark'] {
-  --ifm-color-primary: #25c2a0;
-  --ifm-color-primary-dark: #21af90;
-  --ifm-color-primary-darker: #1fa588;
-  --ifm-color-primary-darkest: #1a8870;
-  --ifm-color-primary-light: #29d5b0;
-  --ifm-color-primary-lighter: #32d8b4;
-  --ifm-color-primary-lightest: #4fddbf;
-  --docusaurus-highlighted-code-line-bg: rgba(0, 0, 0, 0.3);
+/* Top navigation */
+.navbar {
+  border-bottom: 1px solid var(--ifm-color-emphasis-200);
+  box-shadow: 0 2px 12px rgba(8, 37, 62, 0.05);
+}
+
+.navbar__title {
+  font-weight: 800;
+  letter-spacing: -0.025em;
+}
+
+.navbar__logo img {
+  max-height: 38px;
+  width: auto;
+  object-fit: contain;
+}
+
+/* Documentation sidebar */
+.theme-doc-sidebar-container {
+  border-right: 1px solid var(--ifm-color-emphasis-200);
+}
+
+.menu__link {
+  border-radius: 7px;
+  font-size: 0.92rem;
+  transition: background 150ms ease, color 150ms ease;
+}
+
+.menu__link--active:not(.menu__link--sublist) {
+  font-weight: 700;
+}
+
+/* Documentation content */
+.markdown h1 {
+  font-weight: 800;
+  letter-spacing: -0.035em;
+}
+
+.markdown h2 {
+  margin-top: 2.5rem;
+  padding-bottom: 0.55rem;
+  border-bottom: 1px solid var(--ifm-color-emphasis-200);
+  font-weight: 750;
+  letter-spacing: -0.02em;
+}
+
+.markdown h3 {
+  font-weight: 700;
+}
+
+.markdown img {
+  border-radius: 10px;
+}
+
+/* Buttons */
+.button {
+  border-radius: 8px;
+  font-weight: 700;
+  transition: transform 150ms ease, box-shadow 150ms ease;
+}
+
+.button:hover {
+  transform: translateY(-1px);
+}
+
+/* Code blocks */
+.theme-code-block {
+  overflow: hidden;
+  border: 1px solid var(--ifm-color-emphasis-200);
+  border-radius: 10px;
+}
+
+/* Footer */
+.footer {
+  background: #071b33;
+}
+
+.footer,
+.footer a {
+  color: #d1e3f0;
+}
+
+.footer__title {
+  color: #ffffff;
+  font-weight: 800;
+}
+
+.footer a:hover {
+  color: #70d2ff;
+}
+
+.footer__copyright {
+  color: #a9c4d8;
+  font-size: 0.85rem;
+}
+
+[data-theme='dark'] .resourceCard,
+[data-theme='dark'] .bottomBanner {
+  border-color: var(--ifm-color-emphasis-300);
+  box-shadow: none;
+}
+
+[data-theme='dark'] .resourceCard:hover {
+  border-color: var(--ifm-color-primary);
+  box-shadow: 0 12px 28px rgba(0, 0, 0, 0.18);
 }

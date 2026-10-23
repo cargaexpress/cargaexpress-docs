@@ -1,23 +1,398 @@
-/**
- * CSS files with the .module.css suffix will be treated as CSS modules
- * and scoped locally.
- */
 
-.heroBanner {
-  padding: 4rem 0;
-  text-align: center;
+.hero {
   position: relative;
+  display: grid;
+  grid-template-columns: 1.2fr 0.8fr;
+  align-items: center;
+  gap: 48px;
   overflow: hidden;
+  padding: 76px max(7%, calc((100% - 1200px) / 2));
+  background:
+    radial-gradient(ellipse at 85% 20%, rgba(48, 158, 219, 0.2), transparent 40%),
+    linear-gradient(135deg, #071b33 0%, #0b3153 65%, #07517a 100%);
+  color: #ffffff;
 }
 
-@media screen and (max-width: 996px) {
-  .heroBanner {
-    padding: 2rem;
+.heroContent {
+  max-width: 690px;
+}
+
+.eyebrow,
+.sectionEyebrow {
+  display: inline-block;
+  margin-bottom: 16px;
+  color: #65c8f4;
+  font-size: 0.75rem;
+  font-weight: 800;
+  letter-spacing: 0.14em;
+}
+
+.hero h1 {
+  margin-bottom: 20px;
+  color: #ffffff;
+  font-size: clamp(2.5rem, 5vw, 4.3rem);
+  font-weight: 800;
+  line-height: 1.08;
+  letter-spacing: -0.045em;
+}
+
+.heroAccent {
+  display: block;
+  color: #70d2ff;
+}
+
+.heroDescription {
+  max-width: 590px;
+  margin-bottom: 28px;
+  color: #d1e3f0;
+  font-size: 1.08rem;
+  line-height: 1.8;
+}
+
+.heroActions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+}
+
+.primaryButton,
+.secondaryButton,
+.bannerLink {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  min-height: 46px;
+  padding: 12px 18px;
+  border-radius: 9px;
+  font-weight: 700;
+  text-decoration: none;
+  transition: transform 180ms ease, background 180ms ease;
+}
+
+.primaryButton {
+  background: #52c4f2;
+  color: #06223b;
+}
+
+.primaryButton:hover {
+  background: #8cddff;
+  color: #06223b;
+  text-decoration: none;
+  transform: translateY(-2px);
+}
+
+.secondaryButton {
+  border: 1px solid rgba(255, 255, 255, 0.3);
+  color: #ffffff;
+}
+
+.secondaryButton:hover {
+  background: rgba(255, 255, 255, 0.1);
+  color: #ffffff;
+  text-decoration: none;
+}
+
+.heroNote {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  margin-top: 28px;
+  color: #c0d8e8;
+  font-size: 0.85rem;
+}
+
+.statusDot,
+.visualDot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: #61d6a5;
+}
+
+.heroVisual {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  min-width: 0;
+}
+
+.visualCard {
+  width: 100%;
+  max-width: 340px;
+  padding: 22px;
+  border: 1px solid rgba(153, 218, 250, 0.28);
+  border-radius: 18px;
+  background: rgba(12, 49, 78, 0.78);
+  box-shadow: 0 28px 80px rgba(0, 0, 0, 0.2);
+  transform: rotate(2deg);
+}
+
+.visualHeader {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  padding-bottom: 18px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.12);
+}
+
+.visualDot {
+  width: 7px;
+  height: 7px;
+  background: #6bcdf4;
+}
+
+.visualLabel {
+  margin-left: auto;
+  color: #b5d7e9;
+  font-size: 0.65rem;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+}
+
+.visualPackage {
+  display: grid;
+  min-height: 155px;
+  place-items: center;
+  font-size: 5rem;
+}
+
+.visualLine,
+.visualLineShort {
+  height: 8px;
+  margin-top: 12px;
+  border-radius: 10px;
+  background: rgba(157, 212, 239, 0.23);
+}
+
+.visualLine {
+  width: 100%;
+}
+
+.visualLineShort {
+  width: 62%;
+}
+
+.visualFooter {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-top: 26px;
+  color: #9edaf6;
+  font-size: 0.68rem;
+  font-weight: 800;
+  letter-spacing: 0.07em;
+}
+
+.visualArrow {
+  font-size: 1.3rem;
+}
+
+.resources {
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: 64px 28px 76px;
+}
+
+.sectionHeading {
+  display: flex;
+  align-items: end;
+  justify-content: space-between;
+  gap: 20px;
+  margin-bottom: 28px;
+}
+
+.sectionHeading h2,
+.bottomBanner h2 {
+  margin-bottom: 10px;
+  font-size: clamp(1.7rem, 3vw, 2.2rem);
+  font-weight: 800;
+  letter-spacing: -0.03em;
+}
+
+.sectionHeading p,
+.bottomBanner p {
+  margin-bottom: 0;
+  color: var(--ifm-color-emphasis-700);
+  line-height: 1.7;
+}
+
+.sectionHeading .sectionEyebrow,
+.bottomBanner .sectionEyebrow {
+  margin-bottom: 10px;
+  color: var(--ifm-color-primary);
+}
+
+.resourceCount {
+  padding: 8px 12px;
+  border: 1px solid var(--ifm-color-emphasis-300);
+  border-radius: 8px;
+  color: var(--ifm-color-emphasis-700);
+  font-size: 0.72rem;
+  font-weight: 800;
+  letter-spacing: 0.06em;
+  white-space: nowrap;
+}
+
+.cardGrid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 20px;
+}
+
+.resourceCard {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  min-height: 275px;
+  padding: 23px;
+  border: 1px solid var(--ifm-color-emphasis-300);
+  border-radius: 15px;
+  background: var(--ifm-background-surface-color);
+  box-shadow: 0 5px 18px rgba(13, 42, 68, 0.04);
+  transition: transform 180ms ease, box-shadow 180ms ease,
+    border-color 180ms ease;
+}
+
+.resourceCard:hover {
+  transform: translateY(-5px);
+  border-color: var(--ifm-color-primary);
+  box-shadow: 0 15px 32px rgba(13, 42, 68, 0.1);
+}
+
+.cardTop {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 23px;
+}
+
+.cardIcon {
+  display: grid;
+  width: 49px;
+  height: 49px;
+  place-items: center;
+  border-radius: 12px;
+  background: var(--ifm-color-emphasis-100);
+  font-size: 1.55rem;
+}
+
+.cardArrow {
+  color: var(--ifm-color-primary);
+  font-size: 1.25rem;
+}
+
+.resourceCard h3 {
+  margin-bottom: 12px;
+  font-size: 1.12rem;
+  font-weight: 800;
+}
+
+.resourceCard p {
+  flex: 1;
+  margin-bottom: 24px;
+  color: var(--ifm-color-emphasis-700);
+  font-size: 0.91rem;
+  line-height: 1.7;
+}
+
+.cardLink {
+  display: inline-flex;
+  align-items: center;
+  gap: 9px;
+  color: var(--ifm-color-primary);
+  font-size: 0.9rem;
+  font-weight: 800;
+  text-decoration: none;
+}
+
+.cardLink:hover {
+  text-decoration: none;
+}
+
+.bottomBanner {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 24px;
+  max-width: 1144px;
+  margin: 0 auto 70px;
+  padding: 32px;
+  border: 1px solid var(--ifm-color-emphasis-300);
+  border-radius: 16px;
+  background: var(--ifm-background-surface-color);
+}
+
+.bottomBanner > div {
+  max-width: 690px;
+}
+
+.bottomBanner h2 {
+  font-size: 1.6rem;
+}
+
+.bannerLink {
+  flex-shrink: 0;
+  background: var(--ifm-color-primary);
+  color: #ffffff;
+}
+
+.bannerLink:hover {
+  background: var(--ifm-color-primary-dark);
+  color: #ffffff;
+  text-decoration: none;
+}
+
+@media (max-width: 996px) {
+  .hero {
+    grid-template-columns: 1fr;
+    padding: 60px 7%;
+  }
+
+  .heroVisual {
+    justify-content: flex-start;
+  }
+
+  .visualCard {
+    max-width: 420px;
+  }
+
+  .cardGrid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 }
 
-.buttons {
-  display: flex;
-  align-items: center;
-  justify-content: center;
+@media (max-width: 576px) {
+  .hero {
+    padding: 45px 22px;
+  }
+
+  .heroActions {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .resources {
+    padding: 44px 18px;
+  }
+
+  .sectionHeading {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .cardGrid {
+    grid-template-columns: 1fr;
+  }
+
+  .resourceCard {
+    min-height: 230px;
+  }
+
+  .bottomBanner {
+    align-items: flex-start;
+    flex-direction: column;
+    margin: 0 18px 40px;
+    padding: 24px;
+  }
 }
