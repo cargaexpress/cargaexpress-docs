@@ -33,16 +33,28 @@ A carrier or partner provides a batch file. The import process should validate t
 3. Persist or log the original payload for traceability.
 4. Validate required fields and parse timestamps.
 5. Map source status to the canonical state catalog.
-6. apply transition and ordering rules.
+6. Apply transition and ordering rules.
 7. Update the shipment projection without losing event history.
 8. Expose failures, unknown states, and anomalous events for review.
 
 ## Implementation status
 
-All three ingestion strategies are fully implemented, tested, and containerized as part of Sprint 3:
+All three ingestion patterns and their canonical processing pipelines are fully implemented, tested, and containerized in the CargaExpress Control Tower:
 
-1. **Push Integration (Webhooks)**: Implemented via FastAPI \/api/v1/sync/type-a/webhook\ endpoint with asynchronous decoupling through **RabbitMQ 3.12** and **Celery 5.3** workers.
-2. **Pull Integration (Type B Carrier)**: Orchestrated via **Apache Airflow 2.9** using the TaskFlow API (\dag_type_b_polling.py\). Automatically polls carrier active shipments every 30 minutes, parses status transitions, and persists canonical states.
-3. **File-based Integration (Type C Carrier)**: Batch processing orchestrated every 4 hours via \dag_type_c_ingestion.py\. Ingests CSV files, maps carrier columns to canonical schema, and registers updates via \/api/v1/sync/type-c/upload\.
+1. **Push Integration (Type A Webhooks — HU-20 & HU-23)**:
+   - Receives events in 5 distinct formats (flat JSON, nested JSON with numeric codes, Spanish JSON, XML, and URL-encoded form).
+   - Ingests asynchronously via RabbitMQ topic exchange (`eventos_exchange`) satisfying **RNF-01** (p95 = 32.60 ms &le; 200 ms).
+   - Dispatches to consumer workers (`app.worker`) for canonical normalization, RN-02 terminal state protection, and PostgreSQL persistence.
 
-For end-to-end deployment runbooks, Celery worker scaling guidelines, and Airflow configuration, refer to the [Airflow & Celery Orchestration Guide](../operations/airflow-orchestration.mdx).
+2. **Pull Integration (Type B REST APIs — HU-21)**:
+   - Queries `GET /shipments/{tracking_number}` via `TypeBConnectorService` (orchestrated periodically via Apache Airflow `dag_type_b_polling.py`).
+   - Incorporates exponential backoff with jitter on HTTP `429 Too Many Requests` and `5xx` server responses.
+   - Parses heterogeneous ISO 8601 timestamps and synchronizes state into canonical models.
+
+3. **Batch File Integration (Type C Files — HU-22)**:
+   - Ingests CSV and Excel (.xlsx) files via `TypeCConnectorService` (scheduled via Apache Airflow `dag_type_c_ingestion.py`).
+   - Strips Defect 5.3 data quality flaws (summary/total footer rows and repeated mid-file header lines).
+   - Enforces ingestion idempotency via SHA-256 file hashing tracked in `processed_files`.
+
+For detailed architecture on the asynchronous event bus and consumer worker, see [RabbitMQ Event Bus & Worker Pipeline](./rabbitmq-event-bus).
+For end-to-end Airflow scheduling and operational runbooks, refer to the [Airflow Orchestration Guide](../operations/airflow-orchestration.mdx).

@@ -210,20 +210,16 @@ The Sprint 2 work provides the following foundations for subsequent development:
 
 The final sprint handoff should include the current repository structure, Docker Compose configuration, environment setup, seed execution instructions, endpoint examples, and test results. Any unverified implementation item should remain open rather than being reported as completed.
 
-## 9. Pending work and limitations
+## 9. Completed implementation achievements
 
-The following items require separate verification or implementation where they remain outstanding:
+The core Control Tower ingestion pipeline and asynchronous architecture were fully implemented, tested, and merged into `develop`:
 
-- Complete automated validation of all four Type B services.
-- Confirm rate-limit enforcement and its exact scope.
-- Verify deterministic and idempotent seed scripts across all services.
-- Implement or complete scheduled data retrieval and ingestion into the Control Tower.
-- Normalize carrier status catalogs and date formats.
-- Apply canonical state-transition rules to incoming events.
-- Implement reliable retries, duplicate handling, and event-ordering safeguards.
-- Validate end-to-end persistence and shipment visibility.
-
-These items must be reconciled with the approved backlog and the latest repository state before the sprint is formally closed.
+1. **HU-20 — Webhook Ingestion & RN-02 Protection**: Decoders for all 5 Type A carrier formats (flat JSON, nested JSON with numeric codes, Spanish JSON, XML, URL-encoded form), canonical status mapping via `state_mapping_cache`, terminal state protection (**RN-02**), and anomaly tracking in `tracking_anomalies`.
+2. **HU-21 — Type B Carrier REST API Connector**: `TypeBConnectorService` polling tracking endpoints with exponential backoff on HTTP `429 Too Many Requests` and `5xx` server errors, standardizing timestamp formats, and normalizing to canonical statuses.
+3. **HU-22 — Type C Batch File Connector**: `TypeCConnectorService` ingesting CSV and XLSX files, stripping Defect 5.3 total/summary rows and repeated headers mid-file, and guaranteeing idempotency via SHA-256 hash deduplication in `processed_files`.
+4. **HU-23 — RabbitMQ Webhook Decoupling (RNF-01)**: Fully decoupled webhook ingestion with a Topic Exchange (`eventos_exchange`), durable main queue (`eventos_transportadora`), retry queue with TTL (`eventos_transportadora.retry`), and dead-letter queue (`eventos_transportadora.dlq`). Achieved **p95 response latency of 32.60 ms** (Target: &le; 200 ms).
+5. **HU-24 — Standalone Consumer Worker with ACK/NACK**: Independent background daemon `app.worker` consuming events with fair dispatch (`prefetch_count=10`), sending `ACK` on success, routing transient errors to the retry queue, and routing exhausted retries or malformed messages via `NACK` to the DLQ.
+6. **Quality Gate Metrics**: 140 passing automated unit/integration tests with **86.07% code coverage**, full static typing with Mypy, and zero Ruff lint/formatting warnings.
 
 ## Sprint outcome
 

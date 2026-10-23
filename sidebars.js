@@ -50,6 +50,7 @@ const sidebars = {
         'integrations/type-a-webhook',
         'integrations/type-b-simulator',
         'integrations/type-c-batch',
+        'integrations/rabbitmq-event-bus',
       ],
     },
     {

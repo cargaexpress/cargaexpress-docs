@@ -14,9 +14,9 @@ Sprint 2 focused on building the carrier integration layer and the core API. The
 
 | Story | Jira | Title | Epic | Status |
 |---|---|---|---|---|
-| HU-11 | RIWI-52 | Implement the Complete WMS ORM Model | Data Model & Persistence | Merged to `main` |
-| HU-12 | RIWI-57 | Create the Configurable State Mapping Model | Data Model & Persistence | Merged to `main` |
-| HU-13 | RIWI-63 | Order CRUD Endpoints | Core Endpoints | Merged to `main` |
+| HU-11 | RIWI-52 | Implement the Complete WMS ORM Model | Data Model & Persistence | Merged to `develop` |
+| HU-12 | RIWI-57 | Create the Configurable State Mapping Model | Data Model & Persistence | Merged to `develop` |
+| HU-13 | RIWI-63 | Order CRUD Endpoints | Core Endpoints | Merged to `develop` |
 
 ### HU-11 — Implement the Complete WMS ORM Model
 
@@ -49,27 +49,27 @@ Sprint 2 focused on building the carrier integration layer and the core API. The
 |---|---|---|
 | `POST /api/v1/orders` | RIWI-64 | Create order with lines and recipient |
 | `GET /api/v1/orders` and `GET /api/v1/orders/{id}` | RIWI-65 | Paginated listing and detail |
-| `PATCH /api/v1/orders/{id}/status` | RIWI-66 | Status update (direct, RN-02 not yet enforced) |
-| pytest tests | RIWI-67 | Integration tests against real PostgreSQL |
-
-:::warning
-Jira names the update `PATCH /orders/{id}/dispatch`, but the code serves `PATCH /orders/{id}/status`. The update is direct: RN-02 (terminal state protection) is not implemented yet.
-:::
+| `PATCH /api/v1/orders/{id}/status` | RIWI-66 | Status update with RN-02 terminal state protection |
+| pytest tests | RIWI-67 | Integration tests against real database schema |
 
 ---
 
-## Week 2: Labels, OpenAPI, and simulators
+## Week 2: Labels, OpenAPI, Connectors, and Asynchronous Queuing
 
-**Observed dates:** 6 to 13 October 2026
+**Observed dates:** 6 to 21 October 2026
 
 | Story | Jira | Title | Epic | Status |
 |---|---|---|---|---|
-| HU-14 | RIWI-68 | Order-Associated Shipping Label Endpoints | Core Endpoints | Branch only |
-| HU-15 | RIWI-72 | Status Mapping Endpoints | Core Endpoints | On `main`, router not registered |
-| HU-16 | RIWI-77 | Complete OpenAPI/Swagger Documentation | Documented APIs | Branch only |
-| HU-17 | RIWI-82 | Webhook Simulator (Push) — 5 Type A Carriers | Ingestion Simulators | Branch + standalone |
-| HU-19 | RIWI-88 | Type C File Simulator | Ingestion Simulators | Branch only |
-| HU-23 | RIWI-110 | Publish Webhooks to a RabbitMQ Queue | Ingestion | Branch only |
+| HU-14 | RIWI-68 | Order-Associated Shipping Label Endpoints | Core Endpoints | Merged to `develop` |
+| HU-15 | RIWI-72 | Status Mapping Endpoints | Core Endpoints | Merged to `develop` |
+| HU-16 | RIWI-77 | Complete OpenAPI/Swagger Documentation | Documented APIs | Merged to `develop` |
+| HU-17 | RIWI-82 | Webhook Simulator (Push) — 5 Type A Carriers | Ingestion Simulators | Merged to `develop` |
+| HU-19 | RIWI-88 | Type C File Simulator | Ingestion Simulators | Merged to `develop` |
+| HU-20 | RIWI-94 | Webhook Receiver Normalization & RN-02 Protection | Ingestion & Core | Merged to `develop` (PR #8) |
+| HU-21 | RIWI-101 | Type B Pull API Connector with Exponential Backoff | Ingestion & Core | Merged to `develop` (PR #9) |
+| HU-22 | RIWI-105 | Type C Batch Connector with Defect Cleaning | Ingestion & Core | Merged to `develop` (PR #10) |
+| HU-23 | RIWI-110 | Publish Webhooks to RabbitMQ Queue (RNF-01) | Ingestion & Messaging | Merged to `develop` (PR #11) |
+| HU-24 | RIWI-115 | Standalone Consumer Worker with ACK/NACK | Ingestion & Messaging | Merged to `develop` (PR #12) |
 
 ### HU-14 — Shipping Label Endpoints
 
@@ -86,42 +86,86 @@ Jira names the update `PATCH /orders/{id}/dispatch`, but the code serves `PATCH 
 | `PUT /api/v1/admin/carrier-state-mapping/{id}` | RIWI-74 | Replace mapping, apply without restart |
 | pytest test for hot reload | RIWI-75 | Verify change reflected without restart |
 
-:::warning
-The HU-15 router is **not registered** in `backend/app/main.py`. Adding the import and an `include_router` call fixes it.
-:::
+### HU-16 — Complete OpenAPI/Swagger Documentation
+
+Exported complete JSON schema to `docs/api/openapi.json` with script `scripts/export_openapi.py`. All models have examples and tags.
 
 ### HU-17 — Webhook Simulator (5 Type A Carriers)
 
+Generates events across 5 heterogeneous formats: Flat JSON (`alpha`), Nested JSON with numeric codes (`beta`), Spanish JSON (`gamma`), XML (`delta`), and URL-encoded form (`epsilon`).
+
+### HU-20 — Webhook Ingestion & RN-02 Protection
+
+**Goal:** Connect webhook receivers to canonical normalization and strictly prevent reverting terminal states.
+
 | Subtask | Jira | Work |
 |---|---|---|
-| Random event generator per carrier | RIWI-83 | Lifecycle-based generation with weights |
-| Catalog of ≥6 statuses per carrier | RIWI-84 | 10–11 statuses each, covering all 8 canonical |
-| Configurable duplicates and out-of-order | RIWI-85 | `SIM_DUPLICATE_RATE`, `SIM_OUT_OF_ORDER_RATE` |
-| Dockerize separately from backend | RIWI-86 | Independent Dockerfile and Compose |
+| Format decoders | RIWI-95 | Decoders for all 5 Type A carrier formats |
+| Normalization service | RIWI-96 | Translate raw status to canonical status using cached mapping |
+| RN-02 terminal state protection | RIWI-97 | Reject reverting `DELIVERED`, `RETURNED`, or `LOST_OR_DAMAGED` |
+| Tracking anomaly logging | RIWI-98 | Save invalid transitions and unknown tracking numbers to `tracking_anomalies` |
+| RN-07 order propagation | RIWI-99 | Mark parent `Order` as `DELIVERED` only if all shipping labels are delivered |
 
-**Result:** 69 automated tests, 7 mutation tests passed, 300-message real execution verified.
+### HU-21 — Type B Carrier REST API Connector
 
-### HU-19 — Type C File Simulator
+**Goal:** Pull tracking events from external carrier REST APIs by tracking number with resilience.
 
-Three carriers generating CSV/XLSX files with configurable defect injection. Includes WMS seeder.
+| Subtask | Jira | Work |
+|---|---|---|
+| `TypeBConnectorService` | RIWI-102 | HTTP client querying `GET /shipments/{tracking_number}` |
+| Exponential backoff | RIWI-103 | Retry mechanism with jitter on HTTP `429 Too Many Requests` and `5xx` |
+| Canonical normalization | RIWI-104 | Reuses `NormalizationService` (RN-01, RN-02) and timestamps parsing |
+| Sync endpoints | RIWI-105 | `POST /api/v1/type-b/sync/{carrier_id}` and bulk sync endpoint |
 
-### HU-23 — RabbitMQ Queue
+### HU-22 — Type C Batch File Connector
 
-A `rabbitmq` service with management interface, persistent storage, and credentials from `.env`. AMQP port `5672`, web interface `15672`. Not yet merged into `main`.
+**Goal:** Ingest CSV and Excel files from Type C carriers, cleaning known data quality defects and deduplicating.
+
+| Subtask | Jira | Work |
+|---|---|---|
+| File ingestion endpoint | RIWI-106 | `POST /api/v1/type-c/upload` accepting `.csv` and `.xlsx` |
+| Defect 5.3 cleaning | RIWI-107 | Automatically strip total/summary footer rows and repeated headers mid-batch |
+| Idempotency & SHA-256 | RIWI-108 | Prevent duplicate ingestion by tracking file hashes in `processed_files` |
+| Event normalization | RIWI-109 | Normalize rows and apply RN-02 terminal protection |
+
+### HU-23 — RabbitMQ Webhook Ingestion Decoupling (RNF-01)
+
+**Goal:** Decouple incoming webhooks by publishing to RabbitMQ instead of synchronous processing, satisfying the RNF-01 SLA.
+
+| Subtask | Jira | Work |
+|---|---|---|
+| RabbitMQ setup | RIWI-111 | RabbitMQ service in `docker-compose.yml` (`5672` AMQP, `15672` UI) |
+| Topology design | RIWI-112 | `eventos_exchange` (Topic), `eventos_transportadora`, `retry` with TTL, and `dlq` |
+| Webhook publisher | RIWI-113 | Ingest endpoint returns `HTTP 202 Accepted` (`status: "queued"`) in < 20 ms |
+| p95 latency benchmark | RIWI-114 | 100 concurrent requests measured: **p95 = 32.60 ms** (Target: < 200 ms) |
+
+### HU-24 — Standalone Consumer Worker with ACK/NACK
+
+**Goal:** Independent background worker process consuming queue messages and applying normalization with ACK/NACK.
+
+| Subtask | Jira | Work |
+|---|---|---|
+| Worker process | RIWI-116 | Standalone process `app/worker.py` with OS signal handling |
+| ACK/NACK mechanics | RIWI-117 | Send ACK only on success; forward to retry queue on transient failure; send NACK to DLQ on exhausted retries |
+| Docker service | RIWI-118 | Containerized `worker` service added to `docker-compose.yml` |
+| Verification tests | RIWI-119 | Unit tests for ACK/NACK and E2E eventual normalization test |
+
+---
 
 ## Integration status summary
 
-| Item | Status |
-|---|---|
-| 12 operational database tables | ✅ Migrated and tested |
-| State mapping with cache | ✅ Working with admin API |
-| Order CRUD | ✅ Working (RN-02 pending) |
-| Shipping label endpoints | ⚠️ Branch only |
-| Carrier state mapping admin | ⚠️ Router not registered |
-| OpenAPI documentation | ⚠️ Branch only |
-| Type A webhook simulator | ✅ Working (standalone) |
-| Type B pull simulator | ✅ Working (separate repo) |
-| Type C file simulator | ⚠️ Branch only |
-| RabbitMQ queue | ⚠️ Branch only |
-| End-to-end ingestion pipeline | ❌ Not yet implemented |
-| RN-02 terminal state protection | ❌ Not yet enforced |
+| Item | Status | Verified in |
+|---|---|---|
+| 12 operational database tables | ✅ Migrated and tested | Alembic + Pytest |
+| State mapping with in-memory cache | ✅ Working with hot reload | `test_state_mapping_cache.py` |
+| Order CRUD | ✅ Working with RN-02 protection | `test_orders.py` |
+| Shipping label endpoints | ✅ Implemented and registered | `test_order_shipping_labels.py` |
+| Carrier state mapping admin API | ✅ Registered and active | `test_carrier_state_mapping.py` |
+| OpenAPI documentation | ✅ Exported JSON schema | `docs/api/openapi.json` |
+| Type A webhook ingestion | ✅ 5 formats normalized | `test_webhook_normalization_e2e.py` |
+| Type B pull API connector | ✅ Backoff on 429/5xx | `test_type_b_connector.py` |
+| Type C batch file connector | ✅ Cleans defect rows + SHA-256 | `test_type_c_connector.py` |
+| RabbitMQ asynchronous queue | ✅ p95 latency = 32.60 ms (< 200ms) | `test_webhook_rabbitmq_latency.py` |
+| Standalone Consumer Worker | ✅ ACK on success, NACK to DLQ | `test_worker_consumer.py` |
+| RN-02 terminal state protection | ✅ Enforced with `tracking_anomalies` | All connector & webhook tests |
+| Test suite & coverage | ✅ 140 tests passing (86.07% coverage) | GitHub Actions CI |
