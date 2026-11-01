@@ -1,0 +1,444 @@
+---
+id: aws-deployment-guide
+title: AWS Deployment Guide & Runbook
+sidebar_position: 4
+---
+
+# Guia de Despliegue en AWS: CargaExpress Control Tower
+
+Este runbook operativo detalla el procedimiento para aprovisionar, configurar y desplegar el backend y los componentes de soporte de CargaExpress Control Tower en Amazon Web Services (AWS). Los comandos estan basados en AWS CLI v2 y disenados para ejecucion en la region `us-east-2` (Ohio).
+
+---
+
+## Parametros base de ejecucion
+
+Exporta las siguientes variables de entorno para parametrizar los comandos de la sesion:
+
+```bash
+export AWS_REGION="us-east-2"
+export AWS_ACCOUNT_ID=$(aws sts get-caller-identity --query "Account" --output text)
+export ENVIRONMENT="production"
+export PROJECT_NAME="cargaexpress"
+export VPC_CIDR="10.0.0.0/16"
+```
+
+Verifica la sesion de AWS:
+
+```bash
+aws sts get-caller-identity
+```
+
+---
+
+## Prerrequisitos de infraestructura de red y seguridad
+
+La arquitectura separa las capas publica, privada de aplicacion y privada de datos en dos zonas de disponibilidad (`us-east-2a` y `us-east-2b`).
+
+```
+Internet
+   |
+[ Internet Gateway ]
+   |
++-- Public Subnets (10.0.1.0/24, 10.0.2.0/24) ----------------+
+|  [ Application Load Balancer ]      [ NAT Gateway ]         |
++--------------------------------------------|----------------+
+                                             | (Egress outbound)
++-- Private Subnets App (10.0.10.0/24, 10.0.11.0/24) ---------+
+|  [ ECS Fargate: Backend API ]      [ ECS Fargate: Worker ]  |
++-------------------------------------------------------------+
+                                             | (Port 5432)
++-- Private Subnets DB (10.0.20.0/24, 10.0.21.0/24) ----------+
+|  [ Amazon RDS PostgreSQL 16 ]                               |
++-------------------------------------------------------------+
+```
+
+### 1. Creacion de VPC y subredes
+
+```bash
+# 1. Crear VPC
+VPC_ID=$(aws ec2 create-vpc \
+  --cidr-block $VPC_CIDR \
+  --tag-specifications "ResourceType=vpc,Tags=[{Key=Name,Value=${PROJECT_NAME}-vpc}]" \
+  --query "Vpc.VpcId" --output text)
+
+aws ec2 modify-vpc-attribute --vpc-id $VPC_ID --enable-dns-hostnames "{\"Value\":true}"
+aws ec2 modify-vpc-attribute --vpc-id $VPC_ID --enable-dns-support "{\"Value\":true}"
+
+# 2. Crear Internet Gateway
+IGW_ID=$(aws ec2 create-internet-gateway \
+  --tag-specifications "ResourceType=internet-gateway,Tags=[{Key=Name,Value=${PROJECT_NAME}-igw}]" \
+  --query "InternetGateway.InternetGatewayId" --output text)
+aws ec2 attach-internet-gateway --vpc-id $VPC_ID --internet-gateway-id $IGW_ID
+
+# 3. Crear Subredes Publicas (ALB, NAT)
+PUB_SUB_A=$(aws ec2 create-subnet --vpc-id $VPC_ID --cidr-block 10.0.1.0/24 --availability-zone us-east-2a \
+  --tag-specifications "ResourceType=subnet,Tags=[{Key=Name,Value=${PROJECT_NAME}-public-2a}]" \
+  --query "Subnet.SubnetId" --output text)
+PUB_SUB_B=$(aws ec2 create-subnet --vpc-id $VPC_ID --cidr-block 10.0.2.0/24 --availability-zone us-east-2b \
+  --tag-specifications "ResourceType=subnet,Tags=[{Key=Name,Value=${PROJECT_NAME}-public-2b}]" \
+  --query "Subnet.SubnetId" --output text)
+
+# 4. Crear Subredes Privadas para Aplicacion (ECS Fargate)
+PRIV_SUB_APP_A=$(aws ec2 create-subnet --vpc-id $VPC_ID --cidr-block 10.0.10.0/24 --availability-zone us-east-2a \
+  --tag-specifications "ResourceType=subnet,Tags=[{Key=Name,Value=${PROJECT_NAME}-private-app-2a}]" \
+  --query "Subnet.SubnetId" --output text)
+PRIV_SUB_APP_B=$(aws ec2 create-subnet --vpc-id $VPC_ID --cidr-block 10.0.11.0/24 --availability-zone us-east-2b \
+  --tag-specifications "ResourceType=subnet,Tags=[{Key=Name,Value=${PROJECT_NAME}-private-app-2b}]" \
+  --query "Subnet.SubnetId" --output text)
+
+# 5. Crear Subredes Privadas para Base de Datos (RDS PostgreSQL)
+PRIV_SUB_DB_A=$(aws ec2 create-subnet --vpc-id $VPC_ID --cidr-block 10.0.20.0/24 --availability-zone us-east-2a \
+  --tag-specifications "ResourceType=subnet,Tags=[{Key=Name,Value=${PROJECT_NAME}-private-db-2a}]" \
+  --query "Subnet.SubnetId" --output text)
+PRIV_SUB_DB_B=$(aws ec2 create-subnet --vpc-id $VPC_ID --cidr-block 10.0.21.0/24 --availability-zone us-east-2b \
+  --tag-specifications "ResourceType=subnet,Tags=[{Key=Name,Value=${PROJECT_NAME}-private-db-2b}]" \
+  --query "Subnet.SubnetId" --output text)
+```
+
+### 2. Tablas de ruteo y NAT Gateway
+
+```bash
+# 1. Asignar Elastic IP y crear NAT Gateway en subred publica A
+EIP_ALLOC=$(aws ec2 allocate-address --domain vpc --query "AllocationId" --output text)
+NAT_GW_ID=$(aws ec2 create-nat-gateway --subnet-id $PUB_SUB_A --allocation-id $EIP_ALLOC \
+  --tag-specifications "ResourceType=natgateway,Tags=[{Key=Name,Value=${PROJECT_NAME}-nat}]" \
+  --query "NatGateway.NatGatewayId" --output text)
+
+aws ec2 wait nat-gateway-available --nat-gateway-ids $NAT_GW_ID
+
+# 2. Configurar tabla de ruteo publica
+PUB_RT=$(aws ec2 create-route-table --vpc-id $VPC_ID \
+  --tag-specifications "ResourceType=route-table,Tags=[{Key=Name,Value=${PROJECT_NAME}-public-rt}]" \
+  --query "RouteTable.RouteTableId" --output text)
+aws ec2 create-route --route-table-id $PUB_RT --destination-cidr-block 0.0.0.0/0 --gateway-id $IGW_ID
+aws ec2 associate-route-table --route-table-id $PUB_RT --subnet-id $PUB_SUB_A
+aws ec2 associate-route-table --route-table-id $PUB_RT --subnet-id $PUB_SUB_B
+
+# 3. Configurar tabla de ruteo privada
+PRIV_RT=$(aws ec2 create-route-table --vpc-id $VPC_ID \
+  --tag-specifications "ResourceType=route-table,Tags=[{Key=Name,Value=${PROJECT_NAME}-private-rt}]" \
+  --query "RouteTable.RouteTableId" --output text)
+aws ec2 create-route --route-table-id $PRIV_RT --destination-cidr-block 0.0.0.0/0 --nat-gateway-id $NAT_GW_ID
+aws ec2 associate-route-table --route-table-id $PRIV_RT --subnet-id $PRIV_SUB_APP_A
+aws ec2 associate-route-table --route-table-id $PRIV_RT --subnet-id $PRIV_SUB_APP_B
+```
+
+### 3. Grupos de seguridad (Security Groups)
+
+```bash
+# Security Group para ALB
+ALB_SG=$(aws ec2 create-security-group --group-name "${PROJECT_NAME}-alb-sg" \
+  --description "Acceso publico HTTP y HTTPS hacia ALB" --vpc-id $VPC_ID --query "GroupId" --output text)
+aws ec2 authorize-security-group-ingress --group-id $ALB_SG --protocol tcp --port 80 --cidr 0.0.0.0/0
+aws ec2 authorize-security-group-ingress --group-id $ALB_SG --protocol tcp --port 443 --cidr 0.0.0.0/0
+
+# Security Group para Backend y Worker en ECS Fargate
+ECS_SG=$(aws ec2 create-security-group --group-name "${PROJECT_NAME}-ecs-sg" \
+  --description "Trafico interno desde ALB hacia contenedores FastAPI" --vpc-id $VPC_ID --query "GroupId" --output text)
+aws ec2 authorize-security-group-ingress --group-id $ECS_SG --protocol tcp --port 8000 --source-group $ALB_SG
+
+# Security Group para RDS PostgreSQL
+RDS_SG=$(aws ec2 create-security-group --group-name "${PROJECT_NAME}-rds-sg" \
+  --description "Acceso a base de datos PostgreSQL desde tareas ECS" --vpc-id $VPC_ID --query "GroupId" --output text)
+aws ec2 authorize-security-group-ingress --group-id $RDS_SG --protocol tcp --port 5432 --source-group $ECS_SG
+
+# Security Group para RabbitMQ
+RABBITMQ_SG=$(aws ec2 create-security-group --group-name "${PROJECT_NAME}-rabbitmq-sg" \
+  --description "Acceso a broker AMQP desde tareas ECS y workers" --vpc-id $VPC_ID --query "GroupId" --output text)
+aws ec2 authorize-security-group-ingress --group-id $RABBITMQ_SG --protocol tcp --port 5672 --source-group $ECS_SG
+```
+
+---
+
+## Paso 1: Creacion de repositorio en Amazon ECR, build y push
+
+### 1. Crear el repositorio en ECR
+
+```bash
+aws ecr create-repository \
+  --repository-name "${PROJECT_NAME}/backend" \
+  --image-scanning-configuration scanOnPush=true \
+  --encryption-configuration encryptionType=AES256 \
+  --region $AWS_REGION
+```
+
+### 2. Autenticar Docker contra ECR
+
+```bash
+aws ecr get-login-password --region $AWS_REGION | \
+  docker login --username AWS --password-stdin "${AWS_ACCOUNT_ID}.dkr.ecr.${AWS_REGION}.amazonaws.com"
+```
+
+### 3. Compilar y publicar la imagen
+
+```bash
+IMAGE_URI="${AWS_ACCOUNT_ID}.dkr.ecr.${AWS_REGION}.amazonaws.com/${PROJECT_NAME}/backend"
+COMMIT_TAG=$(git rev-parse --short HEAD 2>/dev/null || echo "initial")
+
+docker build \
+  --target final \
+  -t "${IMAGE_URI}:${COMMIT_TAG}" \
+  -t "${IMAGE_URI}:latest" \
+  -f backend/Dockerfile .
+
+docker push "${IMAGE_URI}:${COMMIT_TAG}"
+docker push "${IMAGE_URI}:latest"
+```
+
+Tambien se puede ejecutar el script automatizado `scripts/build_and_push_ecr.sh` (o `scripts/build_and_push_ecr.ps1` en PowerShell):
+
+```bash
+# En Linux/macOS
+chmod +x scripts/build_and_push_ecr.sh
+./scripts/build_and_push_ecr.sh --region "$AWS_REGION" --account-id "$AWS_ACCOUNT_ID" --create-repos
+
+# En Windows PowerShell
+.\scripts\build_and_push_ecr.ps1 -Region $env:AWS_REGION -AccountId $env:AWS_ACCOUNT_ID -CreateRepos
+```
+
+---
+
+## Paso 2: Aprovisionamiento de Amazon RDS PostgreSQL 16 y migraciones con Alembic
+
+### 1. Crear Subnet Group de base de datos
+
+```bash
+aws rds create-db-subnet-group \
+  --db-subnet-group-name "${PROJECT_NAME}-db-subnet-group" \
+  --db-subnet-group-description "Subredes privadas de base de datos para CargaExpress" \
+  --subnet-ids "$PRIV_SUB_DB_A" "$PRIV_SUB_DB_B"
+```
+
+### 2. Aprovisionar instancia RDS PostgreSQL 16
+
+```bash
+DB_PASSWORD=$(openssl rand -base64 24 | tr -dc 'a-zA-Z0-9')
+
+aws rds create-db-instance \
+  --db-instance-identifier "${PROJECT_NAME}-db" \
+  --db-instance-class db.t4g.micro \
+  --engine postgres \
+  --engine-version 16.3 \
+  --master-username postgres \
+  --master-user-password "$DB_PASSWORD" \
+  --allocated-storage 20 \
+  --max-allocated-storage 100 \
+  --storage-type gp3 \
+  --vpc-security-group-ids "$RDS_SG" \
+  --db-subnet-group-name "${PROJECT_NAME}-db-subnet-group" \
+  --db-name cargaexpress \
+  --backup-retention-period 7 \
+  --storage-encrypted \
+  --no-publicly-accessible \
+  --region $AWS_REGION
+
+aws rds wait db-instance-available --db-instance-identifier "${PROJECT_NAME}-db"
+
+DB_ENDPOINT=$(aws rds describe-db-instances \
+  --db-instance-identifier "${PROJECT_NAME}-db" \
+  --query "DBInstances[0].Endpoint.Address" --output text)
+
+echo "RDS Endpoint: $DB_ENDPOINT"
+```
+
+### 3. Migraciones de base de datos con Alembic
+
+La ejecucion se realiza mediante una tarea puntual en ECS Fargate dentro de la VPC:
+
+```bash
+aws ecs run-task \
+  --cluster "${PROJECT_NAME}-cluster" \
+  --task-definition "cargaexpress-backend" \
+  --launch-type FARGATE \
+  --network-configuration "awsvpcConfiguration={subnets=[$PRIV_SUB_APP_A,$PRIV_SUB_APP_B],securityGroups=[$ECS_SG],assignPublicIp=DISABLED}" \
+  --overrides '{"containerOverrides": [{"name": "backend", "command": ["alembic", "upgrade", "head"]}]}' \
+  --region $AWS_REGION
+```
+
+Si se dispone de conectividad segura a la VPC (Bastion/VPN), se puede ejecutar el script `scripts/migrate_rds.sh`:
+
+```bash
+# En Linux/macOS
+chmod +x scripts/migrate_rds.sh
+./scripts/migrate_rds.sh --host "$DB_ENDPOINT" --user postgres --password "$DB_PASSWORD" --name cargaexpress
+
+# En Windows PowerShell
+.\scripts\migrate_rds.ps1 -Host $DB_ENDPOINT -User postgres -Password $DB_PASSWORD -Name cargaexpress
+```
+
+---
+
+## Paso 3: Configuracion de secretos en AWS Secrets Manager y SSM Parameter Store
+
+```bash
+# 1. DATABASE_URL
+DB_ASYNC_URL="postgresql+asyncpg://postgres:${DB_PASSWORD}@${DB_ENDPOINT}:5432/cargaexpress"
+aws secretsmanager create-secret \
+  --name "cargaexpress/production/DATABASE_URL" \
+  --description "Cadena de conexion asincrona a PostgreSQL RDS" \
+  --secret-string "$DB_ASYNC_URL" \
+  --region $AWS_REGION
+
+# 2. ADMIN_API_KEY (HU-12, HU-15)
+ADMIN_TOKEN=$(openssl rand -hex 32)
+aws secretsmanager create-secret \
+  --name "cargaexpress/production/ADMIN_API_KEY" \
+  --description "Token de autenticacion administrativa" \
+  --secret-string "$ADMIN_TOKEN" \
+  --region $AWS_REGION
+
+# 3. API_KEY general
+CLIENT_API_KEY=$(openssl rand -hex 24)
+aws secretsmanager create-secret \
+  --name "cargaexpress/production/API_KEY" \
+  --description "Clave de API para clientes generales" \
+  --secret-string "$CLIENT_API_KEY" \
+  --region $AWS_REGION
+
+# 4. BRAND_API_KEYS
+aws secretsmanager create-secret \
+  --name "cargaexpress/production/BRAND_API_KEYS" \
+  --description "Mapeo JSON de API keys a brand_id" \
+  --secret-string '{"brand-key-acme-prod": 1, "brand-key-solon-prod": 2}' \
+  --region $AWS_REGION
+
+# 5. RABBITMQ_URL
+RABBITMQ_PASS=$(openssl rand -base64 16 | tr -dc 'a-zA-Z0-9')
+aws secretsmanager create-secret \
+  --name "cargaexpress/production/RABBITMQ_URL" \
+  --description "URL de conexion AMQP a RabbitMQ" \
+  --secret-string "amqp://cargaexpress:${RABBITMQ_PASS}@rabbitmq.internal:5672/" \
+  --region $AWS_REGION
+
+# Parametros SSM
+aws ssm put-parameter --name "/cargaexpress/production/APP_ENV" --value "production" --type String --overwrite
+aws ssm put-parameter --name "/cargaexpress/production/LOG_LEVEL" --value "INFO" --type String --overwrite
+aws ssm put-parameter --name "/cargaexpress/production/SQL_ECHO" --value "false" --type String --overwrite
+aws ssm put-parameter --name "/cargaexpress/production/STATE_MAPPING_CACHE_TTL_SECONDS" --value "300" --type String --overwrite
+```
+
+---
+
+## Paso 4: Creacion del cluster ECS, roles IAM y servicios Fargate
+
+```bash
+# 1. Crear cluster ECS
+aws ecs create-cluster \
+  --cluster-name "${PROJECT_NAME}-cluster" \
+  --settings name=containerInsights,value=enabled \
+  --region $AWS_REGION
+
+# 2. Crear grupos de logs en CloudWatch
+aws logs create-log-group --log-group-name "/ecs/${PROJECT_NAME}-backend" --region $AWS_REGION
+aws logs put-retention-policy --log-group-name "/ecs/${PROJECT_NAME}-backend" --retention-in-days 30 --region $AWS_REGION
+
+aws logs create-log-group --log-group-name "/ecs/${PROJECT_NAME}-worker" --region $AWS_REGION
+aws logs put-retention-policy --log-group-name "/ecs/${PROJECT_NAME}-worker" --retention-in-days 30 --region $AWS_REGION
+
+# 3. Registrar definiciones de tarea
+sed "s/<AWS_ACCOUNT_ID>/${AWS_ACCOUNT_ID}/g" deploy/aws/task-definition-backend.json > /tmp/task-backend.json
+sed "s/<AWS_ACCOUNT_ID>/${AWS_ACCOUNT_ID}/g" deploy/aws/task-definition-worker.json > /tmp/task-worker.json
+
+aws ecs register-task-definition --cli-input-json file:///tmp/task-backend.json --region $AWS_REGION
+aws ecs register-task-definition --cli-input-json file:///tmp/task-worker.json --region $AWS_REGION
+
+# 4. Crear servicio worker
+aws ecs create-service \
+  --cluster "${PROJECT_NAME}-cluster" \
+  --service-name "${PROJECT_NAME}-worker-service" \
+  --task-definition "cargaexpress-worker" \
+  --desired-count 1 \
+  --launch-type FARGATE \
+  --network-configuration "awsvpcConfiguration={subnets=[$PRIV_SUB_APP_A,$PRIV_SUB_APP_B],securityGroups=[$ECS_SG],assignPublicIp=DISABLED}" \
+  --region $AWS_REGION
+```
+
+---
+
+## Paso 5: Configuracion del Application Load Balancer (ALB), Target Groups y Health Checks
+
+### 1. Crear el Application Load Balancer
+
+```bash
+ALB_ARN=$(aws elbv2 create-load-balancer \
+  --name "${PROJECT_NAME}-alb" \
+  --subnets "$PUB_SUB_A" "$PUB_SUB_B" \
+  --security-groups "$ALB_SG" \
+  --scheme internet-facing \
+  --type application \
+  --ip-address-type ipv4 \
+  --region $AWS_REGION \
+  --query "LoadBalancers[0].LoadBalancerArn" --output text)
+
+ALB_DNS=$(aws elbv2 describe-load-balancers \
+  --load-balancer-arns "$ALB_ARN" \
+  --query "LoadBalancers[0].DNSName" --output text)
+
+echo "ALB Creado. DNS Publico: $ALB_DNS"
+```
+
+### 2. Configurar Target Group con probe de salud `/api/v1/ready`
+
+El endpoint `/api/v1/ready` ejecuta un `SELECT 1` activo contra PostgreSQL, devolviendo 200 solo si la base de datos esta respondiendo:
+
+```bash
+TG_ARN=$(aws elbv2 create-target-group \
+  --name "${PROJECT_NAME}-backend-tg" \
+  --protocol HTTP \
+  --port 8000 \
+  --vpc-id $VPC_ID \
+  --target-type ip \
+  --health-check-protocol HTTP \
+  --health-check-path "/api/v1/ready" \
+  --health-check-interval-seconds 15 \
+  --health-check-timeout-seconds 5 \
+  --healthy-threshold-count 2 \
+  --unhealthy-threshold-count 3 \
+  --matcher HttpCode="200" \
+  --region $AWS_REGION \
+  --query "TargetGroups[0].TargetGroupArn" --output text)
+
+# Crear Listener HTTP
+aws elbv2 create-listener \
+  --load-balancer-arn "$ALB_ARN" \
+  --protocol HTTP \
+  --port 80 \
+  --default-actions Type=forward,TargetGroupArn="$TG_ARN" \
+  --region $AWS_REGION
+```
+
+### 3. Crear el servicio Backend API en ECS Fargate
+
+```bash
+aws ecs create-service \
+  --cluster "${PROJECT_NAME}-cluster" \
+  --service-name "${PROJECT_NAME}-backend-service" \
+  --task-definition "cargaexpress-backend" \
+  --desired-count 2 \
+  --launch-type FARGATE \
+  --network-configuration "awsvpcConfiguration={subnets=[$PRIV_SUB_APP_A,$PRIV_SUB_APP_B],securityGroups=[$ECS_SG],assignPublicIp=DISABLED}" \
+  --load-balancers "targetGroupArn=${TG_ARN},containerName=backend,containerPort=8000" \
+  --health-check-grace-period-seconds 60 \
+  --region $AWS_REGION
+```
+
+### 4. Pruebas de verificacion
+
+```bash
+# 1. Liveness probe
+curl -i "http://${ALB_DNS}/api/v1/health"
+
+# 2. Readiness probe
+curl -i "http://${ALB_DNS}/api/v1/ready"
+```
+
+---
+
+## Paso 6: Pipeline CI/CD con GitHub Actions y OIDC
+
+El flujo `.github/workflows/deploy-aws.yml` realiza el despliegue continuo autenticandose mediante OpenID Connect (OIDC) sin credenciales estaticas en GitHub.
+
+Configura el secreto en el repositorio:
+- `AWS_ROLE_TO_ASSUME`: `arn:aws:iam::<AWS_ACCOUNT_ID>:role/cargaexpress-github-deploy-role`
+
+Ante cada push a la rama `main`, la accion compila la imagen, la publica en ECR y actualiza las tareas Fargate mediante un rolling update con zero downtime.

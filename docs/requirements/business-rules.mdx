@@ -24,7 +24,7 @@ Terminal states — `DELIVERED`, `RETURNED`, and `LOST_OR_DAMAGED` — are **irr
 2. Rejected at the normalization layer — the canonical status must not be updated.
 3. Flagged as an anomaly for operational review.
 
-**Implementation status:** The rule is defined and documented. The `PATCH /orders/{id}/status` endpoint currently performs **direct** status updates without checking for terminal state regression. Full enforcement is pending.
+**Implementation status:** Implemented and validated in `control_tower` under issue `RIWI-61`. The `PATCH /api/v1/orders/{id}/status` endpoint validates state transitions in the domain layer, rejecting backward or disallowed transitions from terminal states (`DELIVERED`, `RETURNED`, `LOST_OR_DAMAGED`) with HTTP 422 Unprocessable Entity. Unit test coverage is verified in `test_orders.py` (`test_update_order_status_terminal_delivered_rejects_transition_returns_422` and `test_update_order_status_disallowed_transition_returns_422`).
 
 **Test scenario:** `SCN-07` creates an event arriving after `DELIVERED` to validate this rule.
 

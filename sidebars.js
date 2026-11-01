@@ -78,6 +78,7 @@ const sidebars = {
         'operations/local-development',
         'operations/airflow-orchestration',
         'operations/testing-guide',
+        'operations/aws-deployment-guide',
       ],
     },
     'glossary',

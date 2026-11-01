@@ -31,25 +31,26 @@ gantt
 |---|---|---|
 | Business rules RN-01 to RN-10 | ✅ Defined | Documented in Sprint 1 |
 | Canonical state catalog (RN-01) | ✅ Implemented | `state_mapping` table + CHECK constraint |
-| State transition protection (RN-02) | ⚠️ Designed, not enforced | Status updates are direct; no regression check |
+| State transition protection (RN-02) | ✅ Implemented | Validated in `control_tower` (RIWI-61) with unit tests in `test_orders.py` |
 | SLA in business days (RN-03) | ⚠️ Designed | Calendar model defined, implementation in Sprint 3 |
 | At-risk order detection (RN-04) | ⚠️ Designed | Rules defined, Sprint 3 scope |
 | Order-to-label cardinality (RN-07) | ✅ Implemented | `ORDER → SHIPPING_LABEL` one-to-many in schema |
 | 12 operational database tables | ✅ Migrated | Alembic revision `f6b2a9d14c83` (head) |
 | Configurable state mapping (HU-12) | ✅ Working | Admin API + cache with TTL |
 | Order CRUD (HU-13) | ✅ Working | 38 tests, integrated in `main` |
-| Shipping label endpoints (HU-14) | ⚠️ Branch only | `feature/RIWI-68`, not merged |
-| Carrier mapping admin (HU-15) | ⚠️ Router not registered | Code on `main`, router import missing |
+| Shipping label endpoints (HU-14) | ✅ Merged | Integrated in `orders.py` and verified with tests |
+| Carrier mapping admin (HU-15) | ✅ Working | Router registered in `main.py` (`admin_carrier_state_mapping`) |
 | OpenAPI documentation (HU-16) | ⚠️ Branch only | `feautre/RIWI-77` (sic) |
 | Type A webhook simulator (HU-17) | ✅ Working | 69 tests, standalone project |
 | Type B pull simulator | ✅ Working | 4 carriers on ports 8001–8004 |
 | Type C file simulator (HU-19) | ⚠️ Branch only | `feature/RIWI-88` |
 | WMS seeder | ⚠️ Branch only | Part of HU-19 branch |
-| RabbitMQ queue (HU-23) | ⚠️ Branch only | `feature/RIWI-111` |
-| End-to-end ingestion pipeline | ❌ Not started | No consumer connecting simulators to Control Tower |
+| RabbitMQ queue and worker (HU-23) | ✅ Integrated | RabbitMQ service + worker consumer integrated and verified with unit tests |
+| Distributed Airflow orchestration | ✅ Implemented | DAGs Type A, Type B, Type C and distributed worker validation with CeleryExecutor and RabbitMQ |
+| End-to-end ingestion pipeline | ✅ Working | RabbitMQ consumer and normalization service integrated |
 | CI/CD pipeline | ✅ Working | GitHub Actions: lint, format, types, tests, coverage |
 | Docker Compose deployment | ✅ Working | Backend + PostgreSQL, multi-stage build |
-| AWS cloud deployment | ❌ Sprint 3 scope | ECS/Fargate, RDS, S3 planned |
+| AWS cloud deployment | ✅ Documented | ECS Fargate, RDS PostgreSQL 16, ALB, and OIDC CI/CD runbook ready |
 
 ## Test coverage
 
@@ -71,8 +72,8 @@ gantt
 
 | Issue | Impact | Resolution |
 |---|---|---|
-| HU-15 router not registered in `main.py` | Carrier state mapping endpoints not reachable | Add `include_router` call |
-| HU-14 not merged to `main` | Shipping label endpoints unavailable | Merge `feature/RIWI-68` |
-| RN-02 not enforced | Terminal states can be overwritten | Implement transition validation |
-| No ingestion consumer | Simulators cannot feed the Control Tower | Implement raw event store + consumer |
+| HU-15 router registration | Resolved | Router registered in `main.py` (`admin_carrier_state_mapping`) |
+| HU-14 shipping label endpoints | Resolved | Merged to `main` and verified with unit tests |
+| RN-02 terminal state protection | Resolved | Enforced with HTTP 422 under `RIWI-61` and verified in `test_orders.py` |
+| Ingestion consumer | Resolved | RabbitMQ consumer and normalization worker operational |
 | Delta and Epsilon carriers not in DB | Type A simulator can't test full ingestion | Add migration for new carriers |

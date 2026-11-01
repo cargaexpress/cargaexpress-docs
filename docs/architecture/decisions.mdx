@@ -19,7 +19,7 @@ Each ADR explains one technical decision: context, decision, consequences, and e
 | ADR-0005 | Shared admin token, closed by default | HU-12 | Accepted |
 | ADR-0006 | Webhook simulator as an independent service | HU-17 | Accepted |
 | ADR-0007 | Raw events stored unchanged and deduplicated by hash | Architecture v1 | Proposed |
-| ADR-0008 | Push, pull, and file ingestion converge on one raw store | Architecture v1 | Proposed |
+| ADR-0008 | Push, pull, and file ingestion converge on one raw store | Architecture v1 | Accepted |
 | ADR-0009 | Layered data lake and a star schema for analytics | Architecture v1 | Proposed |
 | ADR-0010 | UTC storage with calendar and cut-off by country | Architecture v1 | Proposed |
 
@@ -111,7 +111,7 @@ Each ADR explains one technical decision: context, decision, consequences, and e
 
 ## ADR-0008: Three ingestion modalities
 
-**Status:** Proposed · **Origin:** US-03 (RIWI-23)
+**Status:** Accepted / Implemented · **Origin:** US-03 (RIWI-23)
 
 **Context:** The 12 carriers deliver information in three different ways. The system needs one set of rules regardless of how data arrived.
 
