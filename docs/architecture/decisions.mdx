@@ -22,6 +22,9 @@ Each ADR explains one technical decision: context, decision, consequences, and e
 | ADR-0008 | Push, pull, and file ingestion converge on one raw store | Architecture v1 | Accepted |
 | ADR-0009 | Layered data lake and a star schema for analytics | Architecture v1 | Proposed |
 | ADR-0010 | UTC storage with calendar and cut-off by country | Architecture v1 | Proposed |
+| ADR-0011 | Multi-stage Alpine containerization for lightweight simulator runtimes | RIWI-168 | Accepted |
+| ADR-0012 | Self-hosted MinIO Object Storage with automated 3-day retention for Type C batch files | HU-19 (F5) | Accepted |
+| ADR-0013 | Unified Zero-Cost Nginx Gateway with automated Let\'s Encrypt SSL on AWS EC2 | Infrastructure | Accepted |
 
 ---
 
@@ -150,6 +153,42 @@ All three end as a row in `raw_event` and are normalized with the same rules. A 
 **Decision:** All timestamps stored in UTC (`timestamptz`). The 16:00 cut-off and holidays are applied using the time zone of the distribution center and the calendar of the destination country. A `calendar_day` table stores per-country business day information.
 
 **Consequences:** Results do not depend on the server's time zone. Holiday data must be maintained for every country served.
+
+---
+
+## ADR-0011: Multi-stage Alpine Containerization for Simulators
+
+**Status:** Accepted · **Origin:** RIWI-168
+
+**Context:** The carrier simulators must run on low-resource environments (such as AWS EC2 Free Tier with 1 vCPU and 1 GB RAM). Standard Python base images resulted in containers exceeding 600-800 MB, causing memory pressure and long deployment times.
+
+**Decision:** Standardize all simulator Docker builds on python:3.12-alpine using multi-stage builds and Astral\'s uv with ahead-of-time bytecode compilation (UV_COMPILE_BYTECODE=1). Run all processes under unprivileged non-root users (ppuser, UID 1000).
+
+**Consequences:** Image transfer sizes reduced to ~54.5 MB. Compilation tools are eliminated from runtime layers. Memory consumption is minimized.
+
+---
+
+## ADR-0012: MinIO Object Storage with Automated Retention for Type C Batch Files
+
+**Status:** Accepted · **Origin:** HU-19 (F5)
+
+**Context:** Requirement F5 dictates that 3 batch carriers deposit CSV and Excel files every 4 hours into Object Storage. Managed public cloud storage introduces cost, API rate limits, or outbound transfer charges.
+
+**Decision:** Deploy pgsty/silo:latest (active maintained MinIO fork) mounted on a persistent Docker volume (minio_data). An autonomous scheduler runs every 4 hours, generates carrier files with controlled defect injection, and purges files older than 3 days (RETENTION_DAYS=3).
+
+**Consequences:** Full S3 API compatibility with zero recurring cloud storage fees. Built-in web console for browser file downloads. Bounded disk footprint.
+
+---
+
+## ADR-0013: Unified Zero-Cost Nginx Gateway with Let\'s Encrypt SSL on AWS EC2
+
+**Status:** Accepted · **Origin:** Infrastructure
+
+**Context:** Client applications and automated test runners require HTTPS endpoints with valid certificates to prevent mixed-content and security warnings. Paid domain registration and load balancer fees are not permitted (.00 budget).
+
+**Decision:** Deploy an Nginx reverse proxy gateway handling ports 80 (HTTP redirect) and 443 (HTTPS) with Let\'s Encrypt SSL certificates under a free dynamic DNS subdomain (cargaexpress-simulator-b.mooo.com). Reverse proxy routes requests to Type B carriers (/carrier-a/ through /carrier-d/), Type C carriers (/carrier-1/ through /carrier-3/), and MinIO (/minio/).
+
+**Consequences:** Secure HTTPS access for all carriers under a single free domain. No browser security warnings. Total infrastructure cost remains .00 USD.
 
 ---
 

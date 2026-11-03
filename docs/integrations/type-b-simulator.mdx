@@ -4,48 +4,72 @@ title: Type B API Simulator (Pull)
 sidebar_position: 2
 ---
 
-# Type B API Simulator (Pull)
+# Type B API Simulator (Pull / REST APIs)
 
-The Type B simulator supports testing a pull-style carrier integration. The documented contract queries a shipment individually by tracking number and supports configurable throttling and failure scenarios.
+The Type B simulator supports testing pull-style carrier integrations (Requirement **F4**). The documented contract queries shipments individually by tracking number and supports configurable throttling, status catalogs, and failure scenarios.
 
-## API contract
+---
 
+## Architecture & Live Endpoints
+
+The Type B ecosystem runs as 4 independent microservices with polyglot database backends, unified behind an Nginx Reverse Proxy Gateway with automated Let's Encrypt SSL certificates.
+
+| Carrier Service | Database Engine | Local TCP Port | Live HTTPS Gateway Endpoint |
+|---|---|:---:|---|
+| **Carrier A** | PostgreSQL 16 | `8001` | [`https://cargaexpress-simulator-b.mooo.com/carrier-a/docs`](https://cargaexpress-simulator-b.mooo.com/carrier-a/docs) |
+| **Carrier B** | MySQL 8.4 | `8002` | [`https://cargaexpress-simulator-b.mooo.com/carrier-b/docs`](https://cargaexpress-simulator-b.mooo.com/carrier-b/docs) |
+| **Carrier C** | MongoDB 7.0 | `8003` | [`https://cargaexpress-simulator-b.mooo.com/carrier-c/docs`](https://cargaexpress-simulator-b.mooo.com/carrier-c/docs) |
+| **Carrier D** | SQLite 3 | `8004` | [`https://cargaexpress-simulator-b.mooo.com/carrier-d/docs`](https://cargaexpress-simulator-b.mooo.com/carrier-d/docs) |
+| **Unified Gateway** | Nginx (Alpine) | `80`, `443` | [`https://cargaexpress-simulator-b.mooo.com/`](https://cargaexpress-simulator-b.mooo.com/) |
+
+---
+
+## API Contract & Endpoints
+
+Each carrier exposes standard endpoints conforming to the Type B polling specification:
+
+### 1. Query Shipment by Tracking Number
 ```http
-GET /shipments/{tracking_number}
+GET https://cargaexpress-simulator-b.mooo.com/{carrier_prefix}/shipments/{tracking_number}
+```
+*Example:*
+```bash
+curl -s https://cargaexpress-simulator-b.mooo.com/carrier-a/shipments/TRK-A-000001
 ```
 
-Example shape:
-
+### 2. List All Shipments
 ```http
-GET /shipments/RX-83921
+GET https://cargaexpress-simulator-b.mooo.com/{carrier_prefix}/shipments?limit=50
 ```
 
-The endpoint returns the simulated shipment record for the supplied tracking number, subject to the simulator's configured response and error behavior.
+### 3. List Tracking Events
+```http
+GET https://cargaexpress-simulator-b.mooo.com/{carrier_prefix}/events?limit=50
+```
 
-## Requirements discussed for the simulator
+### 4. Healthcheck
+```http
+GET https://cargaexpress-simulator-b.mooo.com/{carrier_prefix}/health
+```
 
-- Query by tracking number.
-- Support configurable rate limiting; the integration requirement discusses a 30-minute polling/limit interval. Confirm the exact semantics against the approved contract.
-- Support explicit error scenarios so consumers can test recovery behavior.
-- Provide four simulated carrier APIs with carrier-specific status catalogs (at least six statuses per carrier).
-- Use different date formats across carriers and include out-of-order events to test normalization and event-order handling.
-- Keep seed data versioned, deterministic, and idempotent.
+---
 
-## Local test examples reported during development
+## Throttling and Failure Scenarios
 
-These examples were shared in the project conversation. Verify that the port-to-service mapping matches the current simulator repository before using them as a test runbook.
+- **Rate Limiting**: Configurable per carrier (default: 60 requests/minute). Requests exceeding the quota return HTTP 429 (`Too Many Requests`).
+- **Simulated Scenarios**:
+  - `?scenario=server_error`: Simulates internal carrier outage (HTTP 500).
+  - `?scenario=unavailable`: Simulates transient maintenance (HTTP 503).
+  - `?scenario=not_found`: Simulates unregistered tracking number (HTTP 404).
 
-| Local URL example | Scenario |
-|---|---|
-| `http://localhost:8001/shipments/RX-83921?scenario=server_error` | Server error |
-| `http://localhost:8002/shipments/TR-2001?scenario=unavailable` | Service unavailable |
-| `http://localhost:8003/shipments/PK-3001?scenario=not_found` | Not found |
-| `http://localhost:8004/shipments/NO-EXISTE` | Unknown tracking number example |
+---
 
-## Storage decision needs reconciliation
+## Database Architecture & Storage Resolution
 
-A later project description referred to four independent services using PostgreSQL, MySQL, MongoDB, and SQLite respectively. An earlier HU-18 decision discussion preferred minimizing infrastructure and reusing PostgreSQL if viable. These statements should be reconciled against the actual code and an accepted ADR; this page does not silently choose one as the final architecture.
+The Type B implementation successfully resolved the polyglot storage model:
+1. **Carrier A**: PostgreSQL with relational tables (`shipments`, `events`).
+2. **Carrier B**: MySQL with structured tracking tables.
+3. **Carrier C**: MongoDB document store with nested event arrays.
+4. **Carrier D**: Embedded SQLite for lightweight offline operation.
 
-## What this simulator does not prove
-
-The simulator can provide test responses, but it does not by itself prove that the Control Tower's ingestion pipeline, canonicalization, transition rules, persistence, SLA calculations, or user-facing visibility are complete.
+The seed process initializes the dataset deterministically (`SEED=42`), while the periodic generator continuously injects events into all 4 databases.
