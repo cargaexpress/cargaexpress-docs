@@ -1,4 +1,4 @@
----
+﻿---
 id: architecture-decisions
 title: Architecture Decision Records
 sidebar_position: 3
@@ -30,7 +30,7 @@ Each ADR explains one technical decision: context, decision, consequences, and e
 
 ## ADR-0001: Backend stack
 
-**Status:** Accepted · **Origin:** Backend foundation
+**Status:** Accepted Â· **Origin:** Backend foundation
 
 **Context:** The project needs a backend API for order management, state mapping, and carrier integration. It should support async I/O for future webhook ingestion and be compatible with the team's Python expertise.
 
@@ -42,7 +42,7 @@ Each ADR explains one technical decision: context, decision, consequences, and e
 
 ## ADR-0002: Docker Compose and migrations on start
 
-**Status:** Accepted · **Origin:** US-07 (RIWI-40)
+**Status:** Accepted Â· **Origin:** US-07 (RIWI-40)
 
 **Context:** Developers need a reproducible local environment without manual database setup.
 
@@ -54,7 +54,7 @@ Each ADR explains one technical decision: context, decision, consequences, and e
 
 ## ADR-0003: Canonical statuses and state mapping
 
-**Status:** Accepted · **Origin:** HU-12 (RIWI-57)
+**Status:** Accepted Â· **Origin:** HU-12 (RIWI-57)
 
 **Context:** Each carrier uses its own status vocabulary. The Control Tower needs one set of rules regardless of the source.
 
@@ -66,7 +66,7 @@ Each ADR explains one technical decision: context, decision, consequences, and e
 
 ## ADR-0004: State mapping cache
 
-**Status:** Accepted · **Origin:** HU-12
+**Status:** Accepted Â· **Origin:** HU-12
 
 **Context:** The state mapping is read on every event normalization. Querying the database each time adds unnecessary latency.
 
@@ -78,7 +78,7 @@ Each ADR explains one technical decision: context, decision, consequences, and e
 
 ## ADR-0005: Admin API authentication
 
-**Status:** Accepted · **Origin:** HU-12
+**Status:** Accepted Â· **Origin:** HU-12
 
 **Context:** The state mapping admin API should not be accessible to regular API consumers.
 
@@ -90,7 +90,7 @@ Each ADR explains one technical decision: context, decision, consequences, and e
 
 ## ADR-0006: Independent webhook simulator
 
-**Status:** Accepted · **Origin:** HU-17 (RIWI-82)
+**Status:** Accepted Â· **Origin:** HU-17 (RIWI-82)
 
 **Context:** The webhook simulator must not depend on the backend's database, dependencies, or deployment lifecycle.
 
@@ -102,7 +102,7 @@ Each ADR explains one technical decision: context, decision, consequences, and e
 
 ## ADR-0007: Immutable raw events
 
-**Status:** Proposed · **Origin:** Architecture v1
+**Status:** Proposed Â· **Origin:** Architecture v1
 
 **Context:** If the system only kept the final canonical state, a mistake in the rules could not be repaired and a lost message could not be proven.
 
@@ -114,7 +114,7 @@ Each ADR explains one technical decision: context, decision, consequences, and e
 
 ## ADR-0008: Three ingestion modalities
 
-**Status:** Accepted / Implemented · **Origin:** US-03 (RIWI-23)
+**Status:** Accepted / Implemented Â· **Origin:** US-03 (RIWI-23)
 
 **Context:** The 12 carriers deliver information in three different ways. The system needs one set of rules regardless of how data arrived.
 
@@ -122,9 +122,9 @@ Each ADR explains one technical decision: context, decision, consequences, and e
 
 | Modality | Carriers | Mechanism |
 |---|---|---|
-| **A — Push** | 5 | Webhooks received by a FastAPI receiver, queued in RabbitMQ |
-| **B — Pull** | 4 | An Airflow DAG polls REST APIs every 30 minutes |
-| **C — File** | 3 | An Airflow DAG validates and cleans CSV/XLSX files every 4 hours |
+| **A â€” Push** | 5 | Webhooks received by a FastAPI receiver, queued in RabbitMQ |
+| **B â€” Pull** | 4 | An Airflow DAG polls REST APIs every 30 minutes |
+| **C â€” File** | 3 | An Airflow DAG validates and cleans CSV/XLSX files every 4 hours |
 
 All three end as a row in `raw_event` and are normalized with the same rules. A webhook that fails 5 times goes to a dead-letter queue.
 
@@ -134,7 +134,7 @@ All three end as a row in `raw_event` and are normalized with the same rules. A 
 
 ## ADR-0009: Data lake and star schema
 
-**Status:** Proposed · **Origin:** US-03, US-04
+**Status:** Proposed Â· **Origin:** US-03, US-04
 
 **Context:** Management, finance, and the control tower need history and trends. Brands must never see personal data in reports. The operational database should not carry heavy analytical queries.
 
@@ -146,7 +146,7 @@ All three end as a row in `raw_event` and are normalized with the same rules. A 
 
 ## ADR-0010: UTC and business calendars
 
-**Status:** Proposed · **Origin:** US-03, US-04, RN-03
+**Status:** Proposed Â· **Origin:** US-03, US-04, RN-03
 
 **Context:** Orders are dispatched from distribution centers in one country and delivered in another. The SLA is counted in business days with a 16:00 cut-off, excluding Sundays and holidays of the destination country.
 
@@ -158,7 +158,7 @@ All three end as a row in `raw_event` and are normalized with the same rules. A 
 
 ## ADR-0011: Multi-stage Alpine Containerization for Simulators
 
-**Status:** Accepted · **Origin:** RIWI-168
+**Status:** Accepted Â· **Origin:** RIWI-168
 
 **Context:** The carrier simulators must run on low-resource environments (such as AWS EC2 Free Tier with 1 vCPU and 1 GB RAM). Standard Python base images resulted in containers exceeding 600-800 MB, causing memory pressure and long deployment times.
 
@@ -170,7 +170,7 @@ All three end as a row in `raw_event` and are normalized with the same rules. A 
 
 ## ADR-0012: MinIO Object Storage with Automated Retention for Type C Batch Files
 
-**Status:** Accepted · **Origin:** HU-19 (F5)
+**Status:** Accepted Â· **Origin:** HU-19 (F5)
 
 **Context:** Requirement F5 dictates that 3 batch carriers deposit CSV and Excel files every 4 hours into Object Storage. Managed public cloud storage introduces cost, API rate limits, or outbound transfer charges.
 
@@ -182,7 +182,7 @@ All three end as a row in `raw_event` and are normalized with the same rules. A 
 
 ## ADR-0013: Unified Zero-Cost Nginx Gateway with Let\'s Encrypt SSL on AWS EC2
 
-**Status:** Accepted · **Origin:** Infrastructure
+**Status:** Accepted Â· **Origin:** Infrastructure
 
 **Context:** Client applications and automated test runners require HTTPS endpoints with valid certificates to prevent mixed-content and security warnings. Paid domain registration and load balancer fees are not permitted (.00 budget).
 
@@ -191,6 +191,55 @@ All three end as a row in `raw_event` and are normalized with the same rules. A 
 **Consequences:** Secure HTTPS access for all carriers under a single free domain. No browser security warnings. Total infrastructure cost remains .00 USD.
 
 ---
+
+
+---
+
+## ADR-0014: Dual Architecture: Near Real-Time OLTP on RDS PostgreSQL and Batch OLAP on S3 Gold (Parquet/Athena)
+
+**Status:** Accepted · **Origin:** Architecture v2
+
+**Context:** The Control Tower requires sub-second transactional processing for live shipment tracking, state machine validation, and penalty computation, while analytical users in Power BI demand aggregated reporting without overloading operational database resources.
+
+**Decision:** Maintain a dual architecture where PostgreSQL (Amazon RDS) manages 24 operational tables (OLTP) and 10 conformed dimensional tables (OLAP Kimball Star Schema), while an automated export serializes the 10 dimensional tables into Snappy-compressed Apache Parquet in AWS S3 Gold (s3://cargaexpress-datalake-staging-326204936524/gold/). AWS Glue Data Catalog and Amazon Athena Engine v3 provide serverless ANSI SQL access to the lake.
+
+**Consequences:** Complete workload isolation between operational microservices and analytical dashboards. Fast DirectQuery/Import execution in Power BI Desktop without degrading RDS CPU or RAM.
+
+---
+
+## ADR-0015: Private VPC Subnet Isolation with Zero Public Ingress for RDS and SSM Port-Forwarding Bastion
+
+**Status:** Accepted · **Origin:** Security / Cloud
+
+**Context:** Enterprise security rules strictly prohibit public database exposure ( .0.0.0/0 on port 5432) and open SSH access (port 22) on internet-facing compute instances.
+
+**Decision:** Deploy RDS PostgreSQL exclusively inside isolated private data subnets (10.1.20.0/24, 10.1.21.0/24) with Publicly Accessible = false. Developers and business intelligence tools connect securely via AWS Systems Manager (SSM) Session Manager using standard port forwarding (AWS-StartPortForwardingSessionToRemoteHost) through an online private EC2 instance without public IP addresses or open inbound ports.
+
+**Consequences:** Eliminates external brute-force vectors and network eavesdropping. In-transit traffic between local workstations and AWS is encrypted with TLS 1.3 and AWS KMS keys.
+
+---
+
+## ADR-0016: Relational Force-SSL Policy Relaxation (rds.force_ssl=0) for Secure Local SSM Tunnel Ingestion
+
+**Status:** Accepted · **Origin:** Security / BI
+
+**Context:** While the SSM tunnel encrypts traffic from developer workstations to AWS EC2, the client-side .NET Npgsql driver used by Power BI Desktop validates hostnames against certificates. Connecting through localhost:5453 triggered certificate hostname mismatch errors (El certificado remoto no es valido) when ds.force_ssl=1 was strictly enforced by PostgreSQL.
+
+**Decision:** Modify the custom DB parameter group cargaexpress-staging-pg16-params to set ds.force_ssl = 0. This allows unencrypted transport across the local loopback (127.0.0.1), while end-to-end security remains enforced by AWS SSM and KMS envelope encryption.
+
+**Consequences:** Power BI Desktop connects seamlessly to local forwarded ports without requiring root certificate installations in Windows trust stores or disabling SSL globally.
+
+---
+
+## ADR-0017: Unified 8 Canonical States Synchronization Across Normalization and Dimensional Schemas
+
+**Status:** Accepted · **Origin:** Data Quality / Operations
+
+**Context:** In earlier revisions, dimensional schemas consolidated status codes into 7 categories, omitting the distinction between warehouse collection (PICKED_UP) and terminal freight casualties (LOST_OR_DAMAGED). This created discrepancies with the 101 carrier normalization rules defined in state_mapping.
+
+**Decision:** Standardize the canonical status catalog across both the operational state machine and the analytical dimension dim_shipment_statuses to exactly 8 canonical states: CREATED, PICKED_UP, IN_TRANSIT, OUT_FOR_DELIVERY, DELIVERED, EXCEPTION, RETURNED, and LOST_OR_DAMAGED.
+
+**Consequences:** Perfect 1:1 parity between real-time tracking normalization and historical SLA performance dashboards in Power BI.
 
 ## ADR template
 
@@ -202,3 +251,4 @@ Each new ADR should include:
 - **Alternatives considered:** include the reasons for rejection.
 - **Consequences:** operational, cost, reliability, and maintenance impacts.
 - **Traceability:** related RN/F/HU/US IDs.
+

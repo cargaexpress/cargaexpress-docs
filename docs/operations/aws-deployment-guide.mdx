@@ -442,3 +442,54 @@ Configura el secreto en el repositorio:
 - `AWS_ROLE_TO_ASSUME`: `arn:aws:iam::<AWS_ACCOUNT_ID>:role/cargaexpress-github-deploy-role`
 
 Ante cada push a la rama `main`, la accion compila la imagen, la publica en ECR y actualiza las tareas Fargate mediante un rolling update con zero downtime.
+
+---
+
+## Live AWS Staging Deployment Status (Operational)
+
+As of November 2026, the complete CargaExpress Control Tower stack is deployed and operating live in **AWS us-east-2**:
+
+### Live Infrastructure Endpoints
+- **Application Load Balancer**: http://cargaexpress-staging-alb-353383531.us-east-2.elb.amazonaws.com
+- **Swagger Documentation UI**: http://cargaexpress-staging-alb-353383531.us-east-2.elb.amazonaws.com/docs
+- **Target Group Health Check**: http://cargaexpress-staging-alb-353383531.us-east-2.elb.amazonaws.com/api/v1/health ({"status":"ok","database":"up"})
+- **Amazon RDS Endpoint**: cargaexpress-staging-postgres.cnmosmsqi0oq.us-east-2.rds.amazonaws.com:5432 (PostgreSQL 16.10, db.t4g.micro, 20GB gp3)
+- **ECS Fargate Cluster**: cargaexpress-staging-cluster running 6 tasks:
+  1. cargaexpress-staging-api-svc (Port 8000)
+  2. cargaexpress-staging-receiver-svc (Port 8000)
+  3. cargaexpress-staging-worker-svc (Celery background consumer)
+  4. cargaexpress-staging-airflow-scheduler-svc (Airflow scheduler)
+  5. cargaexpress-staging-airflow-webserver-svc (Airflow UI, port 8080)
+  6. cargaexpress-staging-airflow-worker-svc (Celery Airflow execution)
+- **EC2 RabbitMQ & SSM Bastion**: Instance i-004830098afc09efb (10.1.10.32)
+- **S3 Analytical Data Lake**: s3://cargaexpress-datalake-staging-326204936524/gold/
+- **Amazon Athena Workgroup**: cargaexpress-analytics-staging / Database: cargaexpress_gold_staging
+
+### Power BI Desktop Connection Procedures
+
+#### Procedure 1: Via Amazon Athena (Direct S3 Parquet - Recommended)
+1. Open Power BI Desktop -> **Get Data** -> **Amazon Athena**.
+2. **DSN**: Amazon Athena
+3. Credentials:
+   - **Username**: AWS IAM Access Key ID (AKIA...)
+   - **Password**: AWS IAM Secret Access Key
+   - **Connection String Properties**:
+     `	ext
+     AwsRegion=us-east-2;S3OutputLocation=s3://cargaexpress-athena-results-staging-326204936524/;Workgroup=cargaexpress-analytics-staging;
+     `
+
+#### Procedure 2: Via Local Port-Forwarding SSM Tunnel (RDS PostgreSQL)
+1. In developer terminal, launch SSM tunnel:
+   `powershell
+   aws ssm start-session \
+     --target i-004830098afc09efb \
+     --document-name AWS-StartPortForwardingSessionToRemoteHost \
+     --parameters portNumber=5432,localPortNumber=5453,host=cargaexpress-staging-postgres.cnmosmsqi0oq.us-east-2.rds.amazonaws.com \
+     --region us-east-2
+   `
+2. In Power BI:
+   - Server: localhost:5453
+   - Database: cargaexpress_staging
+   - User: powerbi_user
+   - Password: CargaExpress2026!
+   - Data Source Settings: Uncheck "Encrypt connections" (TLS 1.3 encryption is handled transparently by the SSM tunnel).

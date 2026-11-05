@@ -82,3 +82,46 @@ The raw carrier status is preserved in `STATE_MAPPING.raw_status`. Never discard
 - Define `UNIQUE` constraints scoped to the correct domain (`tracking_number` per `carrier_id`).
 - Preserve the raw carrier event identity to support idempotent processing and duplicate detection.
 - Use versioned migration scripts and fixed-seed, idempotent seed data.
+
+---
+
+## Analytical & Dual Data Architecture (Kimball Star Schema)
+
+As implemented in Sprint 3 and verified in staging, CargaExpress features a synchronized **Dual Model (OLTP + OLAP)**:
+
+### 1. Architectural Distribution
+
+| Layer | Engine / Storage | Scope | Tables / Schema |
+| :--- | :--- | :--- | :--- |
+| **Operational (OLTP)** | Amazon RDS PostgreSQL 16 | Real-time event ingestion, WMS lifecycle, carrier state machine, penalty calculations | 24 transactional tables (orders, shipping_labels, state_mapping, etc.) |
+| **Relational OLAP** | Amazon RDS PostgreSQL 16 | Fast SQL reporting and DirectQuery access via local SSM forwarding | 10 dimensional tables (6 dims + 4 facts) |
+| **Lakehouse OLAP** | AWS S3 Gold + AWS Glue | Large-scale historical analytics, columnar scans, serverless Athena engine | 8 cataloged Parquet tables in s3://cargaexpress-datalake-staging-326204936524/gold/ |
+
+### 2. Analytical Entity-Relationship Diagram (Kimball Star Schema)
+
+`mermaid
+erDiagram
+    dim_dates ||--o{ fact_shipments_sla : "dispatch / deadline / delivery date"
+    dim_brands ||--o{ fact_shipments_sla : "brand_key"
+    dim_carriers ||--o{ fact_shipments_sla : "carrier_key"
+    dim_distribution_centers ||--o{ fact_shipments_sla : "dc_key"
+    dim_geographies ||--o{ fact_shipments_sla : "geo_key"
+    dim_shipment_statuses ||--o{ fact_shipments_sla : "status_key"
+
+    dim_dates ||--o{ fact_financial_penalties : "calculation_date_key"
+    dim_brands ||--o{ fact_financial_penalties : "brand_key"
+    dim_carriers ||--o{ fact_financial_penalties : "carrier_key"
+    dim_geographies ||--o{ fact_financial_penalties : "geo_key"
+    dim_shipment_statuses ||--o{ fact_financial_penalties : "status_key"
+`
+
+### 3. Canonical Shipment States (The 8 Official States)
+
+1. **CREATED**: Label registered by WMS; package awaiting warehouse pickup.
+2. **PICKED_UP**: Courier collected package at distribution center (starts SLA business hours clock).
+3. **IN_TRANSIT**: National linehaul or hub transit in progress.
+4. **OUT_FOR_DELIVERY**: Loaded onto last-mile courier vehicle for delivery attempt.
+5. **DELIVERED**: Successfully delivered to recipient (stops SLA clock; terminal).
+6. **EXCEPTION**: Operational delivery obstacle (incorrect address, recipient absent, road blockage).
+7. **RETURNED**: Returned to origin warehouse after exhausted delivery attempts (terminal).
+8. **LOST_OR_DAMAGED**: Catastrophic freight loss, theft, or damage (terminal).
