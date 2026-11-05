@@ -252,3 +252,31 @@ Each new ADR should include:
 - **Consequences:** operational, cost, reliability, and maintenance impacts.
 - **Traceability:** related RN/F/HU/US IDs.
 
+
+---
+
+## ADR-0018: Evolution of OLTP and OLAP Schemas: From Initial Scope to Full Control Tower Architecture
+
+**Status:** Accepted · **Origin:** Architecture Review & Sprint Evolution
+
+**Context:** The initial architectural designs consisted of a basic 12-table OLTP relational model and a Spanish-labeled 10-table OLAP schema (5 dimensions + 4 fact tables). During Sprint 2 and Sprint 3 implementation, requirements evolved to support multi-carrier event ingestion (Types A, B, C), automated financial penalty calculation, SLA business-hour countdowns, anomaly detection, and cloud-native lakehouse querying.
+
+**Decision:** Maintain the original design's core entities while introducing modular extensions:
+1. **OLTP Evolution (12 -> 24 tables):** The original 12 tables (BRAND, DISTRIBUTION_CENTER, SHIPMENT_TYPE, CARRIER, ORDER, ORDER_RECIPIENT, ORDER_LINE, PICKING_TASK, DISPATCH, SHIPPING_LABEL, SHIPPING_LABEL_ITEM, STATE_MAPPING) remain completely intact. The additional 12 tables were created by official Alembic migrations to solve operational gaps:
+   - SLA tracking & business days: shipment_sla_tracking, calendar_holidays.
+   - Real-time alerting & exceptions: shipment_alerts, 	racking_anomalies.
+   - Financial ledger & penalty settlement: universal_penalty_configs, reight_penalties, inancial_settlements, inancial_ledger_entries.
+   - Ingestion audit: etl_batch_runs, etl_rejected_records, processed_files, shipment_attributions.
+2. **OLAP Evolution (Exact 1:1 Mapping to English Kimball Standard):**
+   - dim_fecha -> dim_dates (365 days, multi-country holiday flags).
+   - dim_marca -> dim_brands.
+   - dim_transportadora -> dim_carriers (SCD Type 2).
+   - dim_cd -> dim_distribution_centers.
+   - dim_region -> dim_geographies.
+   - Added dim_shipment_statuses to reflect the 8 canonical states.
+   - act_envio -> act_shipments_sla.
+   - act_penalidad -> act_financial_penalties.
+   - act_evento -> act_shipment_events.
+   - act_pedido_sla -> act_carrier_settlements.
+
+**Consequences:** Full backward compatibility with the original design while meeting production SLA and financial auditability requirements.
